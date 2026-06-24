@@ -420,7 +420,6 @@ export default function SwipeApp() {
           onPointerDown={() => setSelectedShop(null)}
         >
           <div 
-            {/* max-h-[85vh] と overflow-y-auto を追加して、画面からはみ出したら縦スクロールできるようにしたぜ！ */}
             className="bg-white w-full max-w-sm mx-auto rounded-[2rem] shadow-2xl animate-slide-up relative max-h-[85vh] overflow-y-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
