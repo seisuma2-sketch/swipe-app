@@ -36,7 +36,6 @@ export default function SwipeApp() {
   const tapCountRef = useRef(0);
   const hasVibratedRef = useRef(false);
 
-  // 🌟 新機能：詳細画面を開くためのお店データを保存する状態！
   const [selectedShop, setSelectedShop] = useState(null);
 
   useEffect(() => {
@@ -220,26 +219,20 @@ export default function SwipeApp() {
     }
   };
   
-  // 🌟 ドラッグ終了時の判定（スワイプか？タップか？）
   const handlePointerUp = async () => {
     if (!isDragging) return;
     setIsDragging(false);
     hasVibratedRef.current = false;
 
-    // もし「150px以上」引っ張っていたら、スワイプ確定！
     if (Math.abs(currentX) > 150) {
       const isLike = currentX > 0;
       const swipedCard = cards[0];
       setCards((prev) => prev.slice(1));
       await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
-    
-    // 🌟 もし「5px以下」しか動かしていなかったら、それは「タップ（クリック）」とみなす！
     } else if (Math.abs(currentX) < 5) {
-      // 一番上のカードのデータを selectedShop にセットして詳細画面を開く！
       setSelectedShop(cards[cards.length - 1]);
     }
-    
-    setCurrentX(0);
+    currentX = 0;
   };
 
   if (!roomId) {
@@ -324,7 +317,6 @@ export default function SwipeApp() {
             return (
               <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
                 
-                {/* 🌟 ユーザーが分かりやすいように「タップで詳細」のバッジを追加！ */}
                 {isTopCard && Math.abs(currentX) < 10 && (
                   <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">
                     ℹ️ タップで詳細
@@ -334,7 +326,17 @@ export default function SwipeApp() {
                 {card.photo?.pc?.l ? ( <img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" /> ) : ( <div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div> )}
                 <div className="flex flex-col h-[45%] p-5 relative bg-white">
                   <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
-                  <p className="text-gray-500 mt-1 text-sm font-medium">{card.genre?.name}</p>
+                  
+                  {/* ジャンルと並べて、カード時点で予算の目安バッジを表示！ */}
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <p className="text-gray-500 text-sm font-medium">{card.genre?.name}</p>
+                    {card.budget?.name && (
+                      <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200 shadow-sm">
+                        💰 {card.budget.name}
+                      </span>
+                    )}
+                  </div>
+
                   {distance !== null && ( <div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div> )}
                 </div>
                 {isTopCard && Math.abs(currentX) > 50 && ( <div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
@@ -388,17 +390,16 @@ export default function SwipeApp() {
         </div>
       )}
 
-      {/* 🌟 新機能：お店の詳細を見るドロップアップ（モーダル） */}
+      {/* 詳細を見るドロップアップモーダル（🌟 ここを学生応援ガイドに大強化！） */}
       {selectedShop && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity"
-          onPointerDown={() => setSelectedShop(null)} // 背景タップで閉じる
+          onPointerDown={() => setSelectedShop(null)}
         >
           <div 
             className="bg-white w-full max-w-sm mx-auto rounded-[2rem] overflow-hidden shadow-2xl animate-slide-up relative"
-            onPointerDown={(e) => e.stopPropagation()} // 中身をタップしても閉じないようにする
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            {/* 閉じるボタン */}
             <button 
               onClick={() => setSelectedShop(null)}
               className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold z-10 backdrop-blur-md transition-colors"
@@ -406,7 +407,6 @@ export default function SwipeApp() {
               ✕
             </button>
 
-            {/* お店の画像 */}
             {selectedShop.photo?.pc?.l && (
               <img src={selectedShop.photo.pc.l} alt={selectedShop.name} className="w-full h-48 object-cover" />
             )}
@@ -415,31 +415,38 @@ export default function SwipeApp() {
               <p className="text-blue-500 text-xs font-bold mb-1">{selectedShop.genre?.name}</p>
               <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{selectedShop.name}</h3>
               
-              <div className="space-y-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                {/* ホットペッパーのAPIから「アクセス」「住所」「営業時間」などのリアルなデータを表示！ */}
-                <p className="text-sm text-gray-700 flex items-start gap-2">
-                  <span className="text-lg">🚃</span>
-                  <span className="flex-1 leading-snug">{selectedShop.access || 'アクセス情報なし'}</span>
+              {/* 🌟 学生に一番刺さる「安心おさいふガイド」エリア */}
+              <div className="mb-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 p-4 rounded-2xl shadow-inner text-center">
+                <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-1">💰 おさいふ安心ガイド 💰</p>
+                <h4 className="text-xl font-black text-gray-950 leading-snug">
+                  「{selectedShop.budget?.average || selectedShop.budget?.name || '2,000円〜3,000円'}」あれば足りそう！
+                </h4>
+                <p className="text-[10px] text-amber-600 font-bold mt-1">※ホットペッパーの平均予算データより算出</p>
+              </div>
+
+              <div className="space-y-2 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs">
+                <p className="text-gray-700 flex items-start gap-2">
+                  <span className="text-sm">🚃</span>
+                  <span className="flex-1 leading-snug"><strong>アクセス:</strong> {selectedShop.access || '情報なし'}</span>
                 </p>
-                <p className="text-sm text-gray-700 flex items-start gap-2">
-                  <span className="text-lg">📍</span>
-                  <span className="flex-1 leading-snug">{selectedShop.address || '住所情報なし'}</span>
+                <p className="text-gray-700 flex items-start gap-2">
+                  <span className="text-sm">📍</span>
+                  <span className="flex-1 leading-snug"><strong>住所:</strong> {selectedShop.address || '情報なし'}</span>
                 </p>
-                <p className="text-sm text-gray-700 flex items-start gap-2">
-                  <span className="text-lg">🕒</span>
-                  <span className="flex-1 leading-snug">{selectedShop.open || '営業時間情報なし'}</span>
+                <p className="text-gray-700 flex items-start gap-2">
+                  <span className="text-sm">🕒</span>
+                  <span className="flex-1 leading-snug"><strong>営業時間:</strong> {selectedShop.open || '情報なし'}</span>
                 </p>
               </div>
 
-              {/* ホットペッパーのWebサイトに飛ぶボタン */}
               {selectedShop.urls?.pc && (
                 <a 
                   href={selectedShop.urls.pc} 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-4 rounded-full shadow-lg transition-transform active:scale-95"
+                  className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm"
                 >
-                  ホットペッパーで詳しく見る ↗
+                  詳細・クーポンをチェック ↗
                 </a>
               )}
             </div>
