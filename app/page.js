@@ -18,6 +18,10 @@ export default function SwipeApp() {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
+  
+  // 🌟 新機能：よく行くお店を保存する変数！
+  const [favoriteShop, setFavoriteShop] = useState(''); 
+  
   const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
@@ -46,7 +50,11 @@ export default function SwipeApp() {
       const lng = searchParams.get('lng') || myLocation.lng || '';
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
       
-      const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}`);
+      // 🌟 URLからよく行くお店の情報も引っ張ってくる
+      const favorite = searchParams.get('favorite') || favoriteShop || '';
+      
+      // 🌟 APIに「keyword」と「favorite」の両方を投げる！
+      const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}`);
       const data = await res.json();
       if (Array.isArray(data)) setCards(data);
     } catch (error) {
@@ -68,12 +76,14 @@ export default function SwipeApp() {
     const latFromUrl = searchParams.get('lat');
     const lngFromUrl = searchParams.get('lng');
     const keywordFromUrl = searchParams.get('keyword');
+    const favoriteFromUrl = searchParams.get('favorite');
 
     if (roomFromUrl) setRoomId(roomFromUrl);
     if (latFromUrl && lngFromUrl) {
       setMyLocation({ lat: parseFloat(latFromUrl), lng: parseFloat(lngFromUrl) });
     }
     if (keywordFromUrl) setSearchKeyword(keywordFromUrl);
+    if (favoriteFromUrl) setFavoriteShop(favoriteFromUrl);
   }, []);
 
   useEffect(() => {
@@ -188,16 +198,17 @@ export default function SwipeApp() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           const newRoomId = Math.random().toString(36).substring(2, 8);
-          window.location.href = `/?room=${newRoomId}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}`;
+          // 🌟 URLにお気に入りの店も含める！
+          window.location.href = `/?room=${newRoomId}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
         },
         () => {
           const newRoomId = Math.random().toString(36).substring(2, 8);
-          window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}`;
+          window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
         }
       );
     } else {
       const newRoomId = Math.random().toString(36).substring(2, 8);
-      window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}`;
+      window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
     }
   };
 
@@ -247,13 +258,26 @@ export default function SwipeApp() {
         <div className="text-6xl mb-4 drop-shadow-md">📍</div>
         <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
         
+        {/* 🌟 追加：よく行くお店を入力する欄 */}
+        <div className="mb-4 w-full max-w-sm">
+          <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
+          <input 
+            type="text" 
+            value={favoriteShop} 
+            onChange={(e) => setFavoriteShop(e.target.value)} 
+            placeholder="例: サイゼリヤ、一蘭、丸源" 
+            className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" 
+          />
+          <p className="text-[10px] text-gray-500 mt-1 pl-1">この系統に合わせたお店をAIが探してくるよ！</p>
+        </div>
+
         <div className="mb-6 w-full max-w-sm">
-          <label className="block text-sm font-bold text-gray-600 mb-2">わがままな条件を書いてみて！（空欄もOK）</label>
+          <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
           <textarea 
             value={searchKeyword} 
             onChange={(e) => setSearchKeyword(e.target.value)} 
-            placeholder="例: 金欠だけど男3人でガッツリ食べたい！車で行くから駐車場付きで！" 
-            className="w-full px-5 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-24" 
+            placeholder="例: 金欠だけど男3人でガッツリ食べたい！" 
+            className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" 
           />
         </div>
 
@@ -290,7 +314,6 @@ export default function SwipeApp() {
 
       <h1 className="text-2xl font-extrabold mb-2 text-gray-800 mt-4">今日のごはん何にする？</h1>
       
-      {/* トップへ戻るボタンと友達招待ボタンを横並びに！ */}
       <div className="flex gap-3 mb-4 z-20 relative">
         <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">
           🏠 最初から

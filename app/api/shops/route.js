@@ -10,42 +10,48 @@ export async function GET(request) {
   const lng = searchParams.get('lng');
   const rawKeyword = searchParams.get('keyword'); 
   
+  // 🌟 新しく「よく行くお店」のデータも受け取る！
+  const favoriteShop = searchParams.get('favorite'); 
+  
   const range = '3'; 
   let apiParams = { keyword: '' };
 
-  if (rawKeyword) {
+  if (rawKeyword || favoriteShop) {
     try {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       
       const prompt = `あなたは優秀な飲食店の検索コンシェルジュです。
-      ユーザーの入力した自然な文章から、検索に最適な条件を抽出し、以下のJSONフォーマットで出力してください。
+      ユーザーの「今の気分」と「普段よく行くお店の好み」を組み合わせて、検索に最適な条件を抽出し、以下のJSONフォーマットで出力してください。
       余計なテキストやMarkdown( \`\`\`json など )は一切含めず、純粋なJSON文字列のみを返してください。
 
-      ユーザーの入力: "${rawKeyword}"
+      今の気分・条件: "${rawKeyword || '特になし'}"
+      普段よく行くお店の系統: "${favoriteShop || '特になし'}"
+
+      【絶対のルール】
+      ・「普段よく行くお店」が入力されている場合、そのお店のジャンル、価格帯、雰囲気を連想し、「今の気分」と掛け合わせて、ホットペッパーで検索するための短いキーワード（単語の羅列）を生成してください。（例: サイゼリヤ -> ファミレス イタリアン 安い）
+      ・出力は純粋なJSON文字列のみにしてください。
 
       【出力JSONフォーマット】
       {
-        "keyword": "料理名やお店の雰囲気など、検索に使う短いキーワード(例: 焼肉 ガッツリ 安い)",
+        "keyword": "連想・抽出した検索用キーワード(例: ラーメン 豚骨 濃いめ)",
         "parking": 0か1 (車や駐車場希望の文脈があれば1、なければ0),
         "private_room": 0か1 (個室希望があれば1、なければ0),
         "free_food": 0か1 (食べ放題希望があれば1、なければ0)
       }`;
 
       const result = await model.generateContent(prompt);
-      // Geminiが出力したJSON文字列を綺麗にしてJavaScriptのデータに変換
       const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
       apiParams = JSON.parse(responseText);
       
-      console.log('🗣️ ユーザーの入力:', rawKeyword);
+      console.log('🗣️ 気分:', rawKeyword, '/ 好み:', favoriteShop);
       console.log('🤖 Geminiの抽出結果:', apiParams);
     } catch (error) {
       console.error('Gemini解析エラー:', error);
-      apiParams.keyword = rawKeyword; // 万が一AIが失敗したら入力をそのまま使う
+      apiParams.keyword = rawKeyword || favoriteShop; 
     }
   }
 
-  // ホットペッパーAPIのURL作り（10件取得）
   let url = `https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=${hotpepperKey}&format=json&count=10`;
 
   if (lat && lng) {
@@ -54,7 +60,6 @@ export async function GET(request) {
     url += `&keyword=三宮`; 
   }
 
-  // Geminiが弾き出した条件を合体！
   if (apiParams.keyword) url += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
   if (apiParams.parking === 1) url += `&parking=1`;
   if (apiParams.private_room === 1) url += `&private_room=1`;
