@@ -230,9 +230,9 @@ export default function SwipeApp() {
       setCards((prev) => prev.slice(1));
       await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
     } else if (Math.abs(currentX) < 5) {
-      setSelectedShop(cards[cards.length - 1]);
+      setSelectedShop(cards[0]);
     }
-    currentX = 0;
+    setCurrentX(0);
   };
 
   if (!roomId) {
