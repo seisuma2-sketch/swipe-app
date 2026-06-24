@@ -38,6 +38,29 @@ export default function SwipeApp() {
 
   const [selectedShop, setSelectedShop] = useState(null);
 
+  const fetchShops = async (overrideKeyword) => {
+    setIsLoading(true);
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const lat = searchParams.get('lat') || myLocation.lat || '';
+      const lng = searchParams.get('lng') || myLocation.lng || '';
+      const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
+      
+      const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setCards(data);
+    } catch (error) {
+      console.error('通信エラー:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOkawari = (mood) => {
+    setSearchKeyword(mood);
+    fetchShops(mood);
+  };
+
   useEffect(() => {
     setMyUserId('user_' + Math.floor(Math.random() * 10000));
     const searchParams = new URLSearchParams(window.location.search);
@@ -56,24 +79,7 @@ export default function SwipeApp() {
   useEffect(() => {
     if (!roomId) return;
 
-    const fetchShops = async () => {
-      setIsLoading(true);
-      try {
-        const searchParams = new URLSearchParams(window.location.search);
-        const lat = searchParams.get('lat') || '';
-        const lng = searchParams.get('lng') || '';
-        const keyword = searchParams.get('keyword') || '';
-        
-        const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}`);
-        const data = await res.json();
-        if (Array.isArray(data)) setCards(data);
-      } catch (error) {
-        console.error('通信エラー:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchShops();
+    fetchShops(); 
 
     const fetchExistingMatches = async () => {
       const { data } = await supabase.from('swipes').select('restaurant_name, is_like').eq('room_id', roomId);
@@ -230,7 +236,7 @@ export default function SwipeApp() {
       setCards((prev) => prev.slice(1));
       await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
     } else if (Math.abs(currentX) < 5) {
-      setSelectedShop(cards[0]);
+      setSelectedShop(cards[0]); 
     }
     setCurrentX(0);
   };
@@ -286,7 +292,7 @@ export default function SwipeApp() {
       <h1 className="text-2xl font-extrabold mb-2 text-gray-800">今日のごはん何にする？</h1>
       <button onClick={copyRoomUrl} className="mb-4 bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待する</button>
 
-      {/* スワイプカード */}
+      {/* スワイプカードエリア */}
       <div className="relative w-80 h-96 mb-6">
         {isLoading ? ( 
           <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
@@ -294,10 +300,28 @@ export default function SwipeApp() {
             <p className="text-gray-500 font-bold">お店を探しています...</p>
           </div>
         ) : cards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center w-full h-full bg-white rounded-3xl shadow-lg border border-gray-100">
-            <div className="text-5xl mb-4 opacity-50">🍽️</div>
-            <p className="text-gray-500 font-bold">お店がなくなりました</p>
+          
+          <div className="flex flex-col items-center justify-center w-full h-full bg-white rounded-3xl shadow-lg border border-gray-100 p-6 text-center animate-fade-in">
+            <div className="text-4xl mb-2">🍽️</div>
+            <p className="text-gray-900 font-black text-base mb-1">お店がなくなっちゃった！</p>
+            <p className="text-gray-400 text-[11px] font-bold mb-4">今の気分を選んで「おかわり」しようぜ！</p>
+            
+            <div className="flex flex-col gap-2 w-full">
+              <button onClick={() => handleOkawari('あっさり')} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2 px-4 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">
+                🥗 あっさり・ヘルシー系
+              </button>
+              <button onClick={() => handleOkawari('こってり')} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-black py-2 px-4 rounded-xl border border-orange-200 text-xs active:scale-95 transition-all">
+                🍜 こってり・濃いめ系
+              </button>
+              <button onClick={() => handleOkawari('肉')} className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-black py-2 px-4 rounded-xl border border-red-200 text-xs active:scale-95 transition-all">
+                🥩 ガッツリお肉系
+              </button>
+              <button onClick={() => handleOkawari('')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-2 px-4 rounded-xl text-xs active:scale-95 transition-all">
+                🔄 条件なしで全リロード
+              </button>
+            </div>
           </div>
+
         ) : (
           [...cards].reverse().map((card, index) => {
             const isTopCard = index === cards.length - 1;
@@ -389,13 +413,15 @@ export default function SwipeApp() {
         </div>
       )}
 
+      {/* 詳細を見るドロップアップモーダル（🌟 ここを最大高さ制限＋スクロール可能に進化！） */}
       {selectedShop && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity"
           onPointerDown={() => setSelectedShop(null)}
         >
           <div 
-            className="bg-white w-full max-w-sm mx-auto rounded-[2rem] overflow-hidden shadow-2xl animate-slide-up relative"
+            {/* max-h-[85vh] と overflow-y-auto を追加して、画面からはみ出したら縦スクロールできるようにしたぜ！ */}
+            className="bg-white w-full max-w-sm mx-auto rounded-[2rem] shadow-2xl animate-slide-up relative max-h-[85vh] overflow-y-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
             <button 
