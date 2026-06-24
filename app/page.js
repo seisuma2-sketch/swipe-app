@@ -327,7 +327,6 @@ export default function SwipeApp() {
                 <div className="flex flex-col h-[45%] p-5 relative bg-white">
                   <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
                   
-                  {/* ジャンルと並べて、カード時点で予算の目安バッジを表示！ */}
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <p className="text-gray-500 text-sm font-medium">{card.genre?.name}</p>
                     {card.budget?.name && (
@@ -390,7 +389,6 @@ export default function SwipeApp() {
         </div>
       )}
 
-      {/* 詳細を見るドロップアップモーダル（🌟 ここを学生応援ガイドに大強化！） */}
       {selectedShop && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity"
@@ -415,7 +413,6 @@ export default function SwipeApp() {
               <p className="text-blue-500 text-xs font-bold mb-1">{selectedShop.genre?.name}</p>
               <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{selectedShop.name}</h3>
               
-              {/* 🌟 学生に一番刺さる「安心おさいふガイド」エリア */}
               <div className="mb-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 p-4 rounded-2xl shadow-inner text-center">
                 <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-1">💰 おさいふ安心ガイド 💰</p>
                 <h4 className="text-xl font-black text-gray-950 leading-snug">
