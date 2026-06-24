@@ -1,65 +1,481 @@
-import Image from "next/image";
+'use client';
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 
-export default function Home() {
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  if (!lat1 || !lng1 || !lat2 || !lng2) return null;
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c); 
+}
+
+export default function SwipeApp() {
+  const [myUserId, setMyUserId] = useState('');
+  const [roomId, setRoomId] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
+  const [startX, setStartX] = useState(0);
+  const [currentX, setCurrentX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [swipeLogs, setSwipeLogs] = useState([]);
+  
+  const [matchData, setMatchData] = useState(null);
+  const [matchedShops, setMatchedShops] = useState([]); 
+  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false); 
+  const [isSpinning, setIsSpinning] = useState(false); 
+  const [rouletteRotation, setRouletteRotation] = useState(0); 
+  const [rouletteWinner, setRouletteWinner] = useState(null); 
+
+  const [flyingItems, setFlyingItems] = useState([]);
+  const channelRef = useRef(null);
+  const tapCountRef = useRef(0);
+  const hasVibratedRef = useRef(false);
+
+  // 🌟 新機能：詳細画面を開くためのお店データを保存する状態！
+  const [selectedShop, setSelectedShop] = useState(null);
+
+  useEffect(() => {
+    setMyUserId('user_' + Math.floor(Math.random() * 10000));
+    const searchParams = new URLSearchParams(window.location.search);
+    const roomFromUrl = searchParams.get('room');
+    const latFromUrl = searchParams.get('lat');
+    const lngFromUrl = searchParams.get('lng');
+    const keywordFromUrl = searchParams.get('keyword');
+
+    if (roomFromUrl) setRoomId(roomFromUrl);
+    if (latFromUrl && lngFromUrl) {
+      setMyLocation({ lat: parseFloat(latFromUrl), lng: parseFloat(lngFromUrl) });
+    }
+    if (keywordFromUrl) setSearchKeyword(keywordFromUrl);
+  }, []);
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    const fetchShops = async () => {
+      setIsLoading(true);
+      try {
+        const searchParams = new URLSearchParams(window.location.search);
+        const lat = searchParams.get('lat') || '';
+        const lng = searchParams.get('lng') || '';
+        const keyword = searchParams.get('keyword') || '';
+        
+        const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) setCards(data);
+      } catch (error) {
+        console.error('通信エラー:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchShops();
+
+    const fetchExistingMatches = async () => {
+      const { data } = await supabase.from('swipes').select('restaurant_name, is_like').eq('room_id', roomId);
+      if (data) {
+        const counts = {};
+        data.forEach(x => { if (x.is_like) counts[x.restaurant_name] = (counts[x.restaurant_name] || 0) + 1; });
+        const matches = Object.keys(counts).filter(name => counts[name] >= 2);
+        setMatchedShops(matches);
+      }
+    };
+    fetchExistingMatches();
+
+    const channel = supabase.channel(`room-${roomId}`, {
+      config: { broadcast: { self: false } }
+    });
+    channelRef.current = channel;
+
+    channel
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'swipes', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const newSwipe = payload.new;
+          setSwipeLogs((prev) => [newSwipe, ...prev]);
+
+          if (newSwipe.is_like) {
+            setTimeout(async () => {
+              const { data } = await supabase.from('swipes').select('user_id').eq('room_id', roomId).eq('restaurant_name', newSwipe.restaurant_name).eq('is_like', true);
+              if (data && data.length >= 2) {
+                setMatchedShops((prev) => Array.from(new Set([...prev, newSwipe.restaurant_name])));
+                if (newSwipe.user_id !== myUserId) {
+                  setMatchData(newSwipe);
+                  setTimeout(() => setMatchData(null), 4000);
+                }
+              }
+            }, 500);
+          }
+        }
+      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'roulettes', filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const rouletteData = payload.new;
+          startRouletteAnimation(rouletteData.winner_restaurant_name);
+        }
+      )
+      .on('broadcast', { event: 'fly_item' }, (payload) => {
+        triggerFly(payload.payload.content, payload.payload.type, payload.payload.x);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, myUserId]); 
+
+  const triggerFly = (content, type, x) => {
+    const id = Date.now() + Math.random();
+    setFlyingItems((prev) => [...prev, { id, content, type, x }]);
+    setTimeout(() => { setFlyingItems((prev) => prev.filter((item) => item.id !== id)); }, 1500);
+  };
+
+  const handleRouletteTap = (e) => {
+    if (!isSpinning) return; 
+    tapCountRef.current += 1;
+    const tapX = e.clientX || (e.touches && e.touches[0].clientX) || window.innerWidth / 2;
+
+    if (tapCountRef.current % 10 === 0) {
+      const secretImages = ['/デブ.png', '/スクリーンショット_2026-06-23_131841-removebg-preview.png', '/スクリーンショット_2026-06-23_131828-removebg-preview.png'];
+      const randomImage = secretImages[Math.floor(Math.random() * secretImages.length)];
+      triggerFly(randomImage, 'image', tapX);
+      channelRef.current?.send({ type: 'broadcast', event: 'fly_item', payload: { content: randomImage, type: 'image', x: tapX } });
+    } else {
+      const emojis = ['🍣', '🥩', '🍜', '🍻', '🥟', '🎉', '🔥'];
+      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+      triggerFly(randomEmoji, 'emoji', tapX);
+      channelRef.current?.send({ type: 'broadcast', event: 'fly_item', payload: { content: randomEmoji, type: 'emoji', x: tapX } });
+    }
+  };
+
+  const triggerRoulette = async () => {
+    if (matchedShops.length === 0 || isSpinning) return;
+    tapCountRef.current = 0;
+    const randomIndex = Math.floor(Math.random() * matchedShops.length);
+    const winnerName = matchedShops[randomIndex];
+    await supabase.from('roulettes').insert([{ room_id: roomId, winner_restaurant_name: winnerName }]);
+  };
+
+  const startRouletteAnimation = (realWinner) => {
+    setIsRouletteModalOpen(true);
+    setIsSpinning(true);
+    setRouletteWinner(null);
+
+    const index = matchedShops.indexOf(realWinner);
+    const segmentAngle = 360 / matchedShops.length;
+    const targetAngle = 360 - (index * segmentAngle) - (segmentAngle / 2);
+    setRouletteRotation(1800 + targetAngle);
+
+    setTimeout(() => {
+      setIsSpinning(false);
+      setRouletteWinner(realWinner);
+    }, 4000);
+  };
+
+  const createNewRoom = () => {
+    setIsLoading(true);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const newRoomId = Math.random().toString(36).substring(2, 8);
+          window.location.href = `/?room=${newRoomId}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}`;
+        },
+        () => {
+          const newRoomId = Math.random().toString(36).substring(2, 8);
+          window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}`;
+        }
+      );
+    } else {
+      const newRoomId = Math.random().toString(36).substring(2, 8);
+      window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}`;
+    }
+  };
+
+  const copyRoomUrl = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert('URLをコピーしたよ！友達に送ろう！');
+  };
+
+  const handlePointerDown = (e) => { 
+    setStartX(e.clientX); 
+    setIsDragging(true); 
+    hasVibratedRef.current = false;
+  };
+  
+  const handlePointerMove = (e) => { 
+    if (!isDragging) return; 
+    const moveX = e.clientX - startX;
+    setCurrentX(moveX); 
+
+    if (Math.abs(moveX) > 150 && !hasVibratedRef.current) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
+      hasVibratedRef.current = true;
+    } else if (Math.abs(moveX) <= 150) {
+      hasVibratedRef.current = false; 
+    }
+  };
+  
+  // 🌟 ドラッグ終了時の判定（スワイプか？タップか？）
+  const handlePointerUp = async () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    hasVibratedRef.current = false;
+
+    // もし「150px以上」引っ張っていたら、スワイプ確定！
+    if (Math.abs(currentX) > 150) {
+      const isLike = currentX > 0;
+      const swipedCard = cards[0];
+      setCards((prev) => prev.slice(1));
+      await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
+    
+    // 🌟 もし「5px以下」しか動かしていなかったら、それは「タップ（クリック）」とみなす！
+    } else if (Math.abs(currentX) < 5) {
+      // 一番上のカードのデータを selectedShop にセットして詳細画面を開く！
+      setSelectedShop(cards[cards.length - 1]);
+    }
+    
+    setCurrentX(0);
+  };
+
+  if (!roomId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200">
+        <div className="text-6xl mb-4 drop-shadow-md">📍</div>
+        <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight">今日のごはん何にする？</h1>
+        
+        <div className="mb-6 w-80">
+          <label className="block text-sm font-bold text-gray-600 mb-2">食べたいもの・条件（空欄でもOK！）</label>
+          <input 
+            type="text" 
+            value={searchKeyword} 
+            onChange={(e) => setSearchKeyword(e.target.value)} 
+            placeholder="例: 焼肉、カフェ、個室" 
+            className="w-full px-5 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium" 
+          />
+        </div>
+
+        {isLoading ? ( 
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p className="text-gray-500 font-bold">位置情報を取得中...</p>
+          </div>
+        ) : (
+          <button onClick={createNewRoom} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-transform">
+            <span>🧭</span> 現在地周辺で探す
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 overflow-hidden relative pb-10">
+      
+      <style>{`
+        @keyframes floatUp { 
+          0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } 
+          100% { transform: translateY(-400px) scale(1.5) rotate(15deg); opacity: 0; } 
+        }
+        .animate-float-up { animation: floatUp 1.5s ease-out forwards; }
+        
+        @keyframes slideUp {
+          0% { transform: translateY(100%); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+      `}</style>
+
+      <h1 className="text-2xl font-extrabold mb-2 text-gray-800">今日のごはん何にする？</h1>
+      <button onClick={copyRoomUrl} className="mb-4 bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待する</button>
+
+      {/* スワイプカード */}
+      <div className="relative w-80 h-96 mb-6">
+        {isLoading ? ( 
+          <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500 mb-4"></div>
+            <p className="text-gray-500 font-bold">お店を探しています...</p>
+          </div>
+        ) : cards.length === 0 ? (
+          <div className="flex flex-col items-center justify-center w-full h-full bg-white rounded-3xl shadow-lg border border-gray-100">
+            <div className="text-5xl mb-4 opacity-50">🍽️</div>
+            <p className="text-gray-500 font-bold">お店がなくなりました</p>
+          </div>
+        ) : (
+          [...cards].reverse().map((card, index) => {
+            const isTopCard = index === cards.length - 1;
+            const distance = calculateDistance(myLocation.lat, myLocation.lng, parseFloat(card.lat), parseFloat(card.lng));
+            
+            const cardStyle = isTopCard
+              ? { 
+                  transform: `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`, 
+                  transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', 
+                  zIndex: 10,
+                  boxShadow: isDragging 
+                    ? `0px ${Math.abs(currentX) / 10 + 20}px ${Math.abs(currentX) / 5 + 30}px rgba(0,0,0,${Math.min(Math.abs(currentX) / 500 + 0.1, 0.3)})`
+                    : '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                }
+              : { transform: 'scale(0.95) translateY(10px)', transition: 'transform 0.3s ease-out', zIndex: 0 };
+
+            return (
+              <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
+                
+                {/* 🌟 ユーザーが分かりやすいように「タップで詳細」のバッジを追加！ */}
+                {isTopCard && Math.abs(currentX) < 10 && (
+                  <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">
+                    ℹ️ タップで詳細
+                  </div>
+                )}
+
+                {card.photo?.pc?.l ? ( <img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" /> ) : ( <div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div> )}
+                <div className="flex flex-col h-[45%] p-5 relative bg-white">
+                  <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
+                  <p className="text-gray-500 mt-1 text-sm font-medium">{card.genre?.name}</p>
+                  {distance !== null && ( <div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div> )}
+                </div>
+                {isTopCard && Math.abs(currentX) > 50 && ( <div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {matchedShops.length > 0 && (
+        <div className="w-80 bg-gradient-to-r from-pink-50 to-orange-50 rounded-2xl border border-pink-100 p-4 mb-4 shadow-sm text-center">
+          <h4 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2">🔥 マッチしたお店 ({matchedShops.length})</h4>
+          <p className="text-xs text-gray-600 mb-3 truncate font-medium">{matchedShops.join(' / ')}</p>
+          {matchedShops.length >= 2 ? (
+            <button onClick={triggerRoulette} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-2.5 px-4 rounded-xl shadow-md transform hover:scale-102 active:scale-98 transition-all text-sm animate-pulse">🎯 運命のルーレットを回す！</button>
+          ) : (
+            <p className="text-xs text-gray-400 font-bold">2つ以上で回せるよ！</p>
+          )}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      <div className="w-80 h-32 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/50 p-4 overflow-y-auto">
+        <h3 className="text-xs font-black text-gray-400 mb-3 uppercase tracking-wider flex justify-between items-center">
+          <span>みんなのアクション</span>
+          <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
+        </h3>
+        {swipeLogs.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center mt-4 font-medium">まだアクションがありません</p>
+        ) : (
+          <ul className="space-y-2">
+            {swipeLogs.map((log, i) => (
+              <li key={i} className="flex items-center p-2 rounded-xl bg-gray-50 border border-gray-100 transition-all">
+                <span className={`px-2 py-1 rounded text-xs font-extrabold w-12 text-center mr-3 ${log.is_like ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>{log.is_like ? 'LIKE' : 'NOPE'}</span>
+                <span className="font-bold text-gray-800 text-sm truncate flex-1">{log.restaurant_name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {matchData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
+          <div className="bg-white rounded-[2rem] p-8 m-4 shadow-2xl flex flex-col items-center text-center transform scale-100 animate-bounce-short border-4 border-pink-400 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 to-orange-400"></div>
+            <div className="text-6xl mb-2">🎉</div>
+            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400 tracking-tight mb-2">MATCH!</h2>
+            <p className="text-gray-500 font-bold mb-4 text-sm">誰かがこのお店をLIKEしました</p>
+            <p className="text-2xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full">{matchData.restaurant_name}</p>
+            <button onClick={() => setMatchData(null)} className="mt-6 bg-gray-900 text-white font-bold py-3 px-8 rounded-full hover:bg-gray-800 transition-colors w-full">閉じる</button>
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* 🌟 新機能：お店の詳細を見るドロップアップ（モーダル） */}
+      {selectedShop && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity"
+          onPointerDown={() => setSelectedShop(null)} // 背景タップで閉じる
+        >
+          <div 
+            className="bg-white w-full max-w-sm mx-auto rounded-[2rem] overflow-hidden shadow-2xl animate-slide-up relative"
+            onPointerDown={(e) => e.stopPropagation()} // 中身をタップしても閉じないようにする
+          >
+            {/* 閉じるボタン */}
+            <button 
+              onClick={() => setSelectedShop(null)}
+              className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold z-10 backdrop-blur-md transition-colors"
+            >
+              ✕
+            </button>
+
+            {/* お店の画像 */}
+            {selectedShop.photo?.pc?.l && (
+              <img src={selectedShop.photo.pc.l} alt={selectedShop.name} className="w-full h-48 object-cover" />
+            )}
+
+            <div className="p-6">
+              <p className="text-blue-500 text-xs font-bold mb-1">{selectedShop.genre?.name}</p>
+              <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{selectedShop.name}</h3>
+              
+              <div className="space-y-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                {/* ホットペッパーのAPIから「アクセス」「住所」「営業時間」などのリアルなデータを表示！ */}
+                <p className="text-sm text-gray-700 flex items-start gap-2">
+                  <span className="text-lg">🚃</span>
+                  <span className="flex-1 leading-snug">{selectedShop.access || 'アクセス情報なし'}</span>
+                </p>
+                <p className="text-sm text-gray-700 flex items-start gap-2">
+                  <span className="text-lg">📍</span>
+                  <span className="flex-1 leading-snug">{selectedShop.address || '住所情報なし'}</span>
+                </p>
+                <p className="text-sm text-gray-700 flex items-start gap-2">
+                  <span className="text-lg">🕒</span>
+                  <span className="flex-1 leading-snug">{selectedShop.open || '営業時間情報なし'}</span>
+                </p>
+              </div>
+
+              {/* ホットペッパーのWebサイトに飛ぶボタン */}
+              {selectedShop.urls?.pc && (
+                <a 
+                  href={selectedShop.urls.pc} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-4 rounded-full shadow-lg transition-transform active:scale-95"
+                >
+                  ホットペッパーで詳しく見る ↗
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRouletteModalOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 cursor-pointer select-none bg-black/80 backdrop-blur-md" onPointerDown={handleRouletteTap}>
+          {isSpinning && <p className="absolute top-10 text-white font-bold animate-pulse">画面を連打しろ！！！</p>}
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl flex flex-col items-center text-center relative pointer-events-none">
+            <h3 className="text-2xl font-black text-gray-800 mb-6">🎰 ど・れ・に・す・る？</h3>
+            <div className="relative w-64 h-64 mb-8 flex items-center justify-center">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[25px] border-t-red-500 z-30 drop-shadow-md"></div>
+              <div style={{ transform: `rotate(${rouletteRotation}deg)`, transition: isSpinning ? 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)' : 'none' }} className="w-full h-full rounded-full border-8 border-gray-900 bg-gradient-to-tr from-yellow-300 via-pink-400 to-indigo-400 relative overflow-hidden flex items-center justify-center shadow-2xl">
+                <div className="w-8 h-8 rounded-full bg-white border-4 border-gray-900 z-20 shadow-md"></div>
+                <p className="text-white font-black text-xl z-10 rotate-45">❓</p>
+                <p className="text-white font-black text-xl z-10 -rotate-45">✨</p>
+              </div>
+            </div>
+            {rouletteWinner && (
+              <div className="w-full bg-gradient-to-b from-yellow-50 to-amber-100 p-5 rounded-2xl border-2 border-yellow-400 shadow-inner animate-bounce-short pointer-events-auto">
+                <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-1">👑 今日のごはんはココ！</p>
+                <h4 className="text-2xl font-black text-gray-900 leading-snug">{rouletteWinner}</h4>
+              </div>
+            )}
+            {!isSpinning && <button onClick={() => setIsRouletteModalOpen(false)} className="mt-6 bg-gray-900 text-white font-bold py-3 px-8 rounded-full shadow-md w-full pointer-events-auto">閉じる</button>}
+          </div>
+        </div>
+      )}
+
+      {flyingItems.map((item) => (
+        <div key={item.id} className="fixed pointer-events-none z-[150] animate-float-up flex items-center justify-center" style={{ left: item.x - 30, bottom: '50px' }}>
+          {item.type === 'image' ? <img src={item.content} alt="secret" className="w-20 h-20 object-cover rounded-full shadow-xl" /> : <span className="text-5xl drop-shadow-md">{item.content}</span>}
+        </div>
+      ))}
     </div>
   );
 }
