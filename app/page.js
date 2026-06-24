@@ -243,29 +243,28 @@ export default function SwipeApp() {
 
   if (!roomId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4">
         <div className="text-6xl mb-4 drop-shadow-md">📍</div>
-        <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight">今日のごはん何にする？</h1>
+        <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
         
-        <div className="mb-6 w-80">
-          <label className="block text-sm font-bold text-gray-600 mb-2">食べたいもの・条件（空欄でもOK！）</label>
-          <input 
-            type="text" 
+        <div className="mb-6 w-full max-w-sm">
+          <label className="block text-sm font-bold text-gray-600 mb-2">わがままな条件を書いてみて！（空欄もOK）</label>
+          <textarea 
             value={searchKeyword} 
             onChange={(e) => setSearchKeyword(e.target.value)} 
-            placeholder="例: 焼肉、カフェ、個室" 
-            className="w-full px-5 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium" 
+            placeholder="例: 金欠だけど男3人でガッツリ食べたい！車で行くから駐車場付きで！" 
+            className="w-full px-5 py-3 border border-gray-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-24" 
           />
         </div>
 
         {isLoading ? ( 
           <div className="flex flex-col items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <p className="text-gray-500 font-bold">位置情報を取得中...</p>
+            <p className="text-gray-500 font-bold">AIがお店を厳選中...</p>
           </div>
         ) : (
-          <button onClick={createNewRoom} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-transform">
-            <span>🧭</span> 現在地周辺で探す
+          <button onClick={createNewRoom} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-transform w-full max-w-sm justify-center">
+            <span>✨</span> AIに探してもらう
           </button>
         )}
       </div>
@@ -289,10 +288,18 @@ export default function SwipeApp() {
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
 
-      <h1 className="text-2xl font-extrabold mb-2 text-gray-800">今日のごはん何にする？</h1>
-      <button onClick={copyRoomUrl} className="mb-4 bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待する</button>
+      <h1 className="text-2xl font-extrabold mb-2 text-gray-800 mt-4">今日のごはん何にする？</h1>
+      
+      {/* トップへ戻るボタンと友達招待ボタンを横並びに！ */}
+      <div className="flex gap-3 mb-4 z-20 relative">
+        <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">
+          🏠 最初から
+        </button>
+        <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">
+          🔗 友達を招待
+        </button>
+      </div>
 
-      {/* スワイプカードエリア */}
       <div className="relative w-80 h-96 mb-6">
         {isLoading ? ( 
           <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
@@ -413,7 +420,6 @@ export default function SwipeApp() {
         </div>
       )}
 
-      {/* 詳細を見るドロップアップモーダル（🌟 ここを最大高さ制限＋スクロール可能に進化！） */}
       {selectedShop && (
         <div 
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity"
