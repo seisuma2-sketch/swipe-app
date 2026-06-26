@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export async function GET(request) {
   const hotpepperKey = process.env.HOTPEPPER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
-  const googleKey = process.env.GOOGLE_PLACES_API_KEY; // 🌟 Googleの鍵を読み込む！
+  const googleKey = process.env.GOOGLE_PLACES_API_KEY; 
   
   const { searchParams } = new URL(request.url);
   const lat = searchParams.get('lat');
@@ -12,7 +12,7 @@ export async function GET(request) {
   const rawKeyword = searchParams.get('keyword'); 
   const favoriteShop = searchParams.get('favorite'); 
   
-  const range = '4'; // 2km圏内
+  const range = '4'; 
   let apiParams = { keyword: '' };
 
   if (rawKeyword || favoriteShop) {
@@ -48,9 +48,7 @@ export async function GET(request) {
     }
   }
 
-  // ----------------------------------------------------
-  // 📦 ミッション1: ホットペッパーAPIからお店を取得
-  // ----------------------------------------------------
+  // 📦 1: ホットペッパーAPIから取得
   let hpShops = [];
   let hpUrl = `https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=${hotpepperKey}&format=json&count=10`;
 
@@ -73,67 +71,83 @@ export async function GET(request) {
     console.error('ホットペッパーAPIエラー:', error);
   }
 
-  // ----------------------------------------------------
-  // 📦 ミッション2: Google Places APIからお店を取得
-  // ----------------------------------------------------
+  // 📦 2: Google Places APIから取得
   let googleShops = [];
-  if (lat && lng && googleKey) {
-    // 検索半径2000m(2km)でGoogleマップからレストランを検索
+  
+  // 🌟 もしVercelに鍵が設定されていなかったら、エラーカードを作る！
+  if (!googleKey) {
+    googleShops = [{
+      id: 'no-google-key',
+      name: '[G] ⚠️Googleの鍵がないよ！',
+      photo: { pc: { l: '' } },
+      genre: { name: '環境変数エラー' },
+      budget: { name: 'VercelのSettingsを確認！', average: '鍵が読み込めてません' },
+      lat: lat || '34.69', lng: lng || '135.19',
+      address: 'VercelのEnvironment Variablesに GOOGLE_PLACES_API_KEY が設定されているか確認して！',
+      access: '設定後、新しくデプロイし直すと直るよ！',
+      open: '',
+      urls: { pc: '' }
+    }];
+  } else if (lat && lng) {
     let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&type=restaurant&key=${googleKey}&language=ja`;
-    
-    if (apiParams.keyword) {
-      googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
-    }
+    if (apiParams.keyword) googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
     
     try {
       const gRes = await fetch(googleUrl);
       const gData = await gRes.json();
-      const googleResults = gData.results || [];
       
-      // 🌟 Googleのデータ構造をホットペッパーの形に綺麗に翻訳（マッピング）するぜ！
-      googleShops = googleResults.map((place) => {
-        // 写真がある場合はGoogleの画像生成URLを組み立てる
-        const photoUrl = place.photos 
-          ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=500&photoreference=${place.photos[0].photo_reference}&key=${googleKey}`
-          : null;
-          
-        // 価格帯レベル（1〜4）をお財布ガイドの文字に変換
-        let budgetName = '現地でチェック！';
-        if (place.price_level === 1) budgetName = '💰 コスパ最強（安め）';
-        if (place.price_level === 2) budgetName = '💰 ちょうどいい（標準）';
-        if (place.price_level === 3) budgetName = '💰 ごほうび飯（高め）';
+      // 🌟 もしGoogleがエラー（拒否など）を返してきたら、カードにして画面に表示！
+      if (gData.status !== 'OK' && gData.status !== 'ZERO_RESULTS') {
+        googleShops = [{
+          id: 'google-api-error',
+          name: `[G] ⚠️エラー: ${gData.status}`,
+          photo: { pc: { l: '' } },
+          genre: { name: 'Google API拒否エラー' },
+          budget: { name: 'API設定を確認！', average: '制限がキツすぎるかも' },
+          lat: lat, lng: lng,
+          address: gData.error_message || 'Google Cloudの設定を確認してね',
+          access: '「アプリケーションの制限」が「なし」になっているかチェック！',
+          open: '',
+          urls: { pc: '' }
+        }];
+      } else {
+        const googleResults = gData.results || [];
+        googleShops = googleResults.map((place) => {
+          const photoUrl = place.photos 
+            ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=500&photoreference=${place.photos[0].photo_reference}&key=${googleKey}`
+            : null;
+            
+          let budgetName = '現地でチェック！';
+          if (place.price_level === 1) budgetName = '💰 コスパ最強（安め）';
+          if (place.price_level === 2) budgetName = '💰 ちょうどいい（標準）';
+          if (place.price_level === 3) budgetName = '💰 ごほうび飯（高め）';
 
-        return {
-          id: place.place_id,
-          name: `[G] ${place.name}`, // Googleマップのデータとひと目で分かるように印を付与！
-          photo: { pc: { l: photoUrl } },
-          genre: { name: place.rating ? `⭐️ ${place.rating} (Googleマップ)` : 'Googleマップの隠れた名店' },
-          budget: { name: budgetName, average: budgetName },
-          lat: place.geometry.location.lat.toString(),
-          lng: place.geometry.location.lng.toString(),
-          address: place.vicinity || '住所情報なし',
-          access: 'Googleマップで詳細ルートを確認してね！',
-          open: '詳細は下のボタンからマップをチェック！',
-          // 詳細ボタンを押したときに、直接Googleマップアプリのその店にジャンプする最強のリンク！
-          urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` }
-        };
-      });
+          return {
+            id: place.place_id,
+            name: `[G] ${place.name}`,
+            photo: { pc: { l: photoUrl } },
+            genre: { name: place.rating ? `⭐️ ${place.rating} (Googleマップ)` : 'Googleマップの隠れた名店' },
+            budget: { name: budgetName, average: budgetName },
+            lat: place.geometry.location.lat.toString(),
+            lng: place.geometry.location.lng.toString(),
+            address: place.vicinity || '住所情報なし',
+            access: 'Googleマップで詳細ルートを確認してね！',
+            open: '詳細は下のボタンからマップをチェック！',
+            urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` }
+          };
+        });
+      }
     } catch (error) {
-      console.error('Google Places APIエラー:', error);
+      console.error('Google Places API通信エラー:', error);
     }
   }
 
-  // ----------------------------------------------------
-  // 📦 ミッション3: 2つのデータソースを合体させてシャッフル！
-  // ----------------------------------------------------
+  // 📦 3: 合体＆シャッフル
   const combinedShops = [...hpShops, ...googleShops];
-  
-  // シャッフルして毎回新しい出会いを作る（Fisher-Yatesシャッフル）
   for (let i = combinedShops.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [combinedShops[i], combinedShops[j]] = [combinedShops[j], combinedShops[i]];
   }
 
-  // 合体＆厳選された最強のリストをフロントに返すぜ！
   return NextResponse.json(combinedShops);
 }
