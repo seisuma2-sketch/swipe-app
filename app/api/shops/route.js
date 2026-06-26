@@ -9,11 +9,11 @@ export async function GET(request) {
   const lat = searchParams.get('lat');
   const lng = searchParams.get('lng');
   const rawKeyword = searchParams.get('keyword'); 
-  
-  // 🌟 新しく「よく行くお店」のデータも受け取る！
   const favoriteShop = searchParams.get('favorite'); 
   
-  const range = '3'; 
+  // 🌟 改善ポイント1：検索範囲を「3(1km)」から「4(2km)」に広げてヒット率を爆上げ！
+  // さらに広げたい場合は「5(3km)」にしてもOK！
+  const range = '4'; 
   let apiParams = { keyword: '' };
 
   if (rawKeyword || favoriteShop) {
@@ -21,6 +21,7 @@ export async function GET(request) {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       
+      // 🌟 改善ポイント2：AIが欲張らないように「絶対に1単語」と強く指示を出す！
       const prompt = `あなたは優秀な飲食店の検索コンシェルジュです。
       ユーザーの「今の気分」と「普段よく行くお店の好み」を組み合わせて、検索に最適な条件を抽出し、以下のJSONフォーマットで出力してください。
       余計なテキストやMarkdown( \`\`\`json など )は一切含めず、純粋なJSON文字列のみを返してください。
@@ -29,12 +30,13 @@ export async function GET(request) {
       普段よく行くお店の系統: "${favoriteShop || '特になし'}"
 
       【絶対のルール】
-      ・「普段よく行くお店」が入力されている場合、そのお店のジャンル、価格帯、雰囲気を連想し、「今の気分」と掛け合わせて、ホットペッパーで検索するための短いキーワード（単語の羅列）を生成してください。（例: サイゼリヤ -> ファミレス イタリアン 安い）
-      ・出力は純粋なJSON文字列のみにしてください。
+      ・ホットペッパーで検索ヒット件数を増やすため、キーワードは欲張らずに「最も適切な1単語のみ」にしてください。
+      ・ダメな例: "ファミレス イタリアン 安い" -> 良い例: "イタリアン"
+      ・ダメな例: "ラーメン 豚骨 濃いめ" -> 良い例: "ラーメン"
 
       【出力JSONフォーマット】
       {
-        "keyword": "連想・抽出した検索用キーワード(例: ラーメン 豚骨 濃いめ)",
+        "keyword": "検索用キーワードを絶対に1単語で指定(例: ラーメン)",
         "parking": 0か1 (車や駐車場希望の文脈があれば1、なければ0),
         "private_room": 0か1 (個室希望があれば1、なければ0),
         "free_food": 0か1 (食べ放題希望があれば1、なければ0)
@@ -48,7 +50,8 @@ export async function GET(request) {
       console.log('🤖 Geminiの抽出結果:', apiParams);
     } catch (error) {
       console.error('Gemini解析エラー:', error);
-      apiParams.keyword = rawKeyword || favoriteShop; 
+      // AIが失敗した時は、とりあえず入力をそのまま使う
+      apiParams.keyword = favoriteShop || rawKeyword; 
     }
   }
 
