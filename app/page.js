@@ -18,10 +18,7 @@ export default function SwipeApp() {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
-  
-  // 🌟 新機能：よく行くお店を保存する変数！
   const [favoriteShop, setFavoriteShop] = useState(''); 
-  
   const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
@@ -42,6 +39,12 @@ export default function SwipeApp() {
 
   const [selectedShop, setSelectedShop] = useState(null);
 
+  // 🌟 新機能：ボタン一つで入力欄を自動セットする神関数！
+  const applyPreset = (fav, keyword) => {
+    setFavoriteShop(fav);
+    setSearchKeyword(keyword);
+  };
+
   const fetchShops = async (overrideKeyword) => {
     setIsLoading(true);
     try {
@@ -49,11 +52,8 @@ export default function SwipeApp() {
       const lat = searchParams.get('lat') || myLocation.lat || '';
       const lng = searchParams.get('lng') || myLocation.lng || '';
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
-      
-      // 🌟 URLからよく行くお店の情報も引っ張ってくる
       const favorite = searchParams.get('favorite') || favoriteShop || '';
       
-      // 🌟 APIに「keyword」と「favorite」の両方を投げる！
       const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}`);
       const data = await res.json();
       if (Array.isArray(data)) setCards(data);
@@ -198,7 +198,6 @@ export default function SwipeApp() {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           const newRoomId = Math.random().toString(36).substring(2, 8);
-          // 🌟 URLにお気に入りの店も含める！
           window.location.href = `/?room=${newRoomId}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
         },
         () => {
@@ -256,9 +255,43 @@ export default function SwipeApp() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4">
         <div className="text-6xl mb-4 drop-shadow-md">📍</div>
-        <h1 className="text-3xl font-extrabold mb-8 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
+        <h1 className="text-3xl font-extrabold mb-6 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
         
-        {/* 🌟 追加：よく行くお店を入力する欄 */}
+        {/* 🌟 新機能：ワンタップでシチュエーションを召喚するプリセットボタン！ */}
+        <div className="mb-6 w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+          <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">💡 えらぶだけで自動入力！</label>
+          <div className="flex flex-wrap gap-2">
+            <button 
+              type="button" 
+              onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')}
+              className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all"
+            >
+              💸 金欠ガッツリ
+            </button>
+            <button 
+              type="button" 
+              onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all"
+            >
+              🍜 ドライブ麺
+            </button>
+            <button 
+              type="button" 
+              onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')}
+              className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all"
+            >
+              🕒 深夜の夜食
+            </button>
+            <button 
+              type="button" 
+              onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')}
+              className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all"
+            >
+              🍻 サークル飲み
+            </button>
+          </div>
+        </div>
+
         <div className="mb-4 w-full max-w-sm">
           <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
           <input 
@@ -268,7 +301,6 @@ export default function SwipeApp() {
             placeholder="例: サイゼリヤ、一蘭、丸源" 
             className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" 
           />
-          <p className="text-[10px] text-gray-500 mt-1 pl-1">この系統に合わせたお店をAIが探してくるよ！</p>
         </div>
 
         <div className="mb-6 w-full max-w-sm">
