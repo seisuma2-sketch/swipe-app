@@ -12,7 +12,8 @@ export async function GET(request) {
   const rawKeyword = searchParams.get('keyword'); 
   const favoriteShop = searchParams.get('favorite'); 
   
-  const range = '4'; 
+  // 🌟 改善1：検索範囲を広げる！ range=5 はホットペッパーで「3km」、Googleでも「3000m」に設定して有名店を拾う！
+  const range = '5'; 
   let apiParams = { keyword: '' };
 
   if (rawKeyword || favoriteShop) {
@@ -66,7 +67,11 @@ export async function GET(request) {
   try {
     const res = await fetch(hpUrl);
     const data = await res.json();
-    hpShops = data.results?.shop || [];
+    // 🌟 ホットペッパーのデータだと分かるように目印（dataSource）をつける
+    hpShops = (data.results?.shop || []).map(shop => ({
+      ...shop,
+      dataSource: 'hotpepper'
+    }));
   } catch (error) {
     console.error('ホットペッパーAPIエラー:', error);
   }
@@ -74,41 +79,22 @@ export async function GET(request) {
   // 📦 2: Google Places APIから取得
   let googleShops = [];
   
-  // 🌟 もしVercelに鍵が設定されていなかったら、エラーカードを作る！
   if (!googleKey) {
     googleShops = [{
-      id: 'no-google-key',
-      name: '[G] ⚠️Googleの鍵がないよ！',
-      photo: { pc: { l: '' } },
-      genre: { name: '環境変数エラー' },
-      budget: { name: 'VercelのSettingsを確認！', average: '鍵が読み込めてません' },
-      lat: lat || '34.69', lng: lng || '135.19',
-      address: 'VercelのEnvironment Variablesに GOOGLE_PLACES_API_KEY が設定されているか確認して！',
-      access: '設定後、新しくデプロイし直すと直るよ！',
-      open: '',
-      urls: { pc: '' }
+      id: 'no-google-key', name: '[G] ⚠️Googleの鍵がないよ！', photo: { pc: { l: '' } }, genre: { name: '環境変数エラー' }, budget: { name: '', average: '' }, lat: lat || '34.69', lng: lng || '135.19', address: '設定を確認してね', access: '', open: '', urls: { pc: '' }, dataSource: 'error'
     }];
   } else if (lat && lng) {
-    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&type=restaurant&key=${googleKey}&language=ja`;
+    // 🌟 改善2：radiusを3000(3km)に拡大！
+    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=restaurant&key=${googleKey}&language=ja`;
     if (apiParams.keyword) googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
     
     try {
       const gRes = await fetch(googleUrl);
       const gData = await gRes.json();
       
-      // 🌟 もしGoogleがエラー（拒否など）を返してきたら、カードにして画面に表示！
       if (gData.status !== 'OK' && gData.status !== 'ZERO_RESULTS') {
         googleShops = [{
-          id: 'google-api-error',
-          name: `[G] ⚠️エラー: ${gData.status}`,
-          photo: { pc: { l: '' } },
-          genre: { name: 'Google API拒否エラー' },
-          budget: { name: 'API設定を確認！', average: '制限がキツすぎるかも' },
-          lat: lat, lng: lng,
-          address: gData.error_message || 'Google Cloudの設定を確認してね',
-          access: '「アプリケーションの制限」が「なし」になっているかチェック！',
-          open: '',
-          urls: { pc: '' }
+          id: 'google-api-error', name: `[G] ⚠️エラー: ${gData.status}`, photo: { pc: { l: '' } }, genre: { name: 'APIエラー' }, budget: { name: '', average: '' }, lat: lat, lng: lng, address: gData.error_message || '', access: '', open: '', urls: { pc: '' }, dataSource: 'error'
         }];
       } else {
         const googleResults = gData.results || [];
@@ -122,18 +108,25 @@ export async function GET(request) {
           if (place.price_level === 2) budgetName = '💰 ちょうどいい（標準）';
           if (place.price_level === 3) budgetName = '💰 ごほうび飯（高め）';
 
+          // 🌟 改善3：口コミ件数（user_ratings_total）を取得してジャンル欄に表示！これが信頼性の証になる！
+          const ratingText = place.rating && place.user_ratings_total 
+            ? `⭐️ ${place.rating} (${place.user_ratings_total.toLocaleString()}件の口コミ)` 
+            : 'Googleマップの隠れた名店';
+
           return {
             id: place.place_id,
             name: `[G] ${place.name}`,
             photo: { pc: { l: photoUrl } },
-            genre: { name: place.rating ? `⭐️ ${place.rating} (Googleマップ)` : 'Googleマップの隠れた名店' },
+            genre: { name: ratingText },
             budget: { name: budgetName, average: budgetName },
             lat: place.geometry.location.lat.toString(),
             lng: place.geometry.location.lng.toString(),
             address: place.vicinity || '住所情報なし',
             access: 'Googleマップで詳細ルートを確認してね！',
             open: '詳細は下のボタンからマップをチェック！',
-            urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` }
+            urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` },
+            dataSource: 'google',
+            reviewCount: place.user_ratings_total || 0 // フロントでバッジを出すための数値データ
           };
         });
       }

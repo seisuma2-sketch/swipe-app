@@ -39,7 +39,6 @@ export default function SwipeApp() {
 
   const [selectedShop, setSelectedShop] = useState(null);
 
-  // 🌟 新機能：ボタン一つで入力欄を自動セットする神関数！
   const applyPreset = (fav, keyword) => {
     setFavoriteShop(fav);
     setSearchKeyword(keyword);
@@ -257,60 +256,24 @@ export default function SwipeApp() {
         <div className="text-6xl mb-4 drop-shadow-md">📍</div>
         <h1 className="text-3xl font-extrabold mb-6 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
         
-        {/* 🌟 新機能：ワンタップでシチュエーションを召喚するプリセットボタン！ */}
         <div className="mb-6 w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
           <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">💡 えらぶだけで自動入力！</label>
           <div className="flex flex-wrap gap-2">
-            <button 
-              type="button" 
-              onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')}
-              className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all"
-            >
-              💸 金欠ガッツリ
-            </button>
-            <button 
-              type="button" 
-              onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all"
-            >
-              🍜 ドライブ麺
-            </button>
-            <button 
-              type="button" 
-              onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')}
-              className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all"
-            >
-              🕒 深夜の夜食
-            </button>
-            <button 
-              type="button" 
-              onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')}
-              className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all"
-            >
-              🍻 サークル飲み
-            </button>
+            <button type="button" onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')} className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all">💸 金欠ガッツリ</button>
+            <button type="button" onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')} className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all">🍜 ドライブ麺</button>
+            <button type="button" onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')} className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all">🕒 深夜の夜食</button>
+            <button type="button" onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')} className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all">🍻 サークル飲み</button>
           </div>
         </div>
 
         <div className="mb-4 w-full max-w-sm">
           <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
-          <input 
-            type="text" 
-            value={favoriteShop} 
-            onChange={(e) => setFavoriteShop(e.target.value)} 
-            placeholder="例: サイゼリヤ、一蘭、丸源" 
-            className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" 
-          />
+          <input type="text" value={favoriteShop} onChange={(e) => setFavoriteShop(e.target.value)} placeholder="例: サイゼリヤ、一蘭、丸源" className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" />
         </div>
 
         <div className="mb-6 w-full max-w-sm">
           <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
-          <textarea 
-            value={searchKeyword} 
-            onChange={(e) => setSearchKeyword(e.target.value)} 
-            placeholder="例: 金欠だけど男3人でガッツリ食べたい！" 
-            className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" 
-          />
+          <textarea value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="例: 金欠だけど男3人でガッツリ食べたい！" className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" />
         </div>
 
         {isLoading ? ( 
@@ -369,18 +332,10 @@ export default function SwipeApp() {
             <p className="text-gray-400 text-[11px] font-bold mb-4">今の気分を選んで「おかわり」しようぜ！</p>
             
             <div className="flex flex-col gap-2 w-full">
-              <button onClick={() => handleOkawari('あっさり')} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2 px-4 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">
-                🥗 あっさり・ヘルシー系
-              </button>
-              <button onClick={() => handleOkawari('こってり')} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-black py-2 px-4 rounded-xl border border-orange-200 text-xs active:scale-95 transition-all">
-                🍜 こってり・濃いめ系
-              </button>
-              <button onClick={() => handleOkawari('肉')} className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-black py-2 px-4 rounded-xl border border-red-200 text-xs active:scale-95 transition-all">
-                🥩 ガッツリお肉系
-              </button>
-              <button onClick={() => handleOkawari('')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-2 px-4 rounded-xl text-xs active:scale-95 transition-all">
-                🔄 条件なしで全リロード
-              </button>
+              <button onClick={() => handleOkawari('あっさり')} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2 px-4 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">🥗 あっさり・ヘルシー系</button>
+              <button onClick={() => handleOkawari('こってり')} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-black py-2 px-4 rounded-xl border border-orange-200 text-xs active:scale-95 transition-all">🍜 こってり・濃いめ系</button>
+              <button onClick={() => handleOkawari('肉')} className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-black py-2 px-4 rounded-xl border border-red-200 text-xs active:scale-95 transition-all">🥩 ガッツリお肉系</button>
+              <button onClick={() => handleOkawari('')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-2 px-4 rounded-xl text-xs active:scale-95 transition-all">🔄 条件なしで全リロード</button>
             </div>
           </div>
 
@@ -403,6 +358,20 @@ export default function SwipeApp() {
             return (
               <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
                 
+                {/* 🌟 新機能：信頼性バッジをカードの左上に表示！ */}
+                <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 pointer-events-none">
+                  {card.dataSource === 'google' && card.reviewCount >= 100 && (
+                    <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">
+                      🔥 口コミ多数の有名店
+                    </span>
+                  )}
+                  {card.dataSource === 'hotpepper' && (
+                    <span className="bg-orange-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">
+                      📝 HotPepper掲載店
+                    </span>
+                  )}
+                </div>
+
                 {isTopCard && Math.abs(currentX) < 10 && (
                   <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">
                     ℹ️ タップで詳細
@@ -504,7 +473,7 @@ export default function SwipeApp() {
                 <h4 className="text-xl font-black text-gray-950 leading-snug">
                   「{selectedShop.budget?.average || selectedShop.budget?.name || '2,000円〜3,000円'}」あれば足りそう！
                 </h4>
-                <p className="text-[10px] text-amber-600 font-bold mt-1">※ホットペッパーの平均予算データより算出</p>
+                <p className="text-[10px] text-amber-600 font-bold mt-1">※平均予算データより算出</p>
               </div>
 
               <div className="space-y-2 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs">
