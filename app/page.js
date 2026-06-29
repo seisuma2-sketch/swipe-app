@@ -358,7 +358,6 @@ export default function SwipeApp() {
             return (
               <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
                 
-                {/* 🌟 新機能：信頼性バッジをカードの左上に表示！ */}
                 <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 pointer-events-none">
                   {card.dataSource === 'google' && card.reviewCount >= 100 && (
                     <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">
@@ -491,15 +490,27 @@ export default function SwipeApp() {
                 </p>
               </div>
 
+              {/* 🌟 新機能：データ元に応じてボタンを進化！ */}
               {selectedShop.urls?.pc && (
-                <a 
-                  href={selectedShop.urls.pc} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm"
-                >
-                  詳細・クーポンをチェック ↗
-                </a>
+                selectedShop.dataSource === 'google' ? (
+                  <a 
+                    href={selectedShop.urls.pc} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm"
+                  >
+                    📍 マップで今の混み具合をチェック！ ↗
+                  </a>
+                ) : (
+                  <a 
+                    href={selectedShop.urls.pc} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm"
+                  >
+                    📱 待たずにすぐネット予約・クーポン！ ↗
+                  </a>
+                )
               )}
             </div>
           </div>
