@@ -17,6 +17,7 @@ export async function GET(request) {
   const rawKeyword = searchParams.get('keyword'); 
   const favoriteShop = searchParams.get('favorite'); 
   const userId = searchParams.get('user_id');
+  const userType = searchParams.get('user_type') || 'student'; // 🌟 新機能：学生か大人かを受け取る
 
   const range = '5'; 
   let apiParams = { keyword: '' };
@@ -40,25 +41,22 @@ export async function GET(request) {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       
-      const prompt = `あなたは優秀な飲食店の検索コンシェルジュです。
-      ユーザーの「今の気分」「好きな店の系統」に加えて、「過去にLIKEしたお店の履歴」を総合的に分析して、今最も刺さる検索条件を1単語で抽出してください。
-      余計なテキストやMarkdown( \`\`\`json など )は一切含めず、純粋なJSON文字列のみを返してください。
+      // 🌟 分岐：モードによってAIへの指示（洗脳）を完全に切り替える！
+      let prompt = '';
+      if (userType === 'adult') {
+        prompt = `あなたは『社会人・大人』向けの飲食店検索コンシェルジュです。
+        ユーザーの「今の気分」「好きな店の系統」「過去にLIKEした履歴」を分析し、今最も刺さる検索条件を1単語で抽出してください。
+        【絶対のルール】落ち着いた雰囲気、会社宴会、デート、接待、少し贅沢な食事などに使えるお店を意識してください。
+        出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
+      } else {
+        prompt = `あなたは『お金はないけど美味い飯が食いたい大学生』向けの飲食店検索コンシェルジュです。
+        ユーザーの「今の気分」「好きな店の系統」「過去にLIKEした履歴」を分析し、今最も刺さる検索条件を1単語で抽出してください。
+        【絶対のルール】「コスパ最強」「大盛り」「安い」「B級グルメ」「学生向け居酒屋」などの要素を強めに意識し、高級すぎるジャンルは避けてください。
+        出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
+      }
 
-      今の気分・条件: "${rawKeyword || '特になし'}"
-      普段よく行くお店の系統: "${favoriteShop || '特になし'}"
-      過去にこのユーザーがLIKEしたお店の履歴: "${historyText}"
-
-      【絶対のルール】
-      ・過去の履歴にラーメンが多ければラーメン系、居酒屋が多ければ居酒屋系など、好みの傾向をキーワードに色濃く反映させてください。
-      ・検索ヒット件数を増やすため、出力するキーワードは「最も適切な1単語のみ」にしてください。
-
-      【出力JSONフォーマット】
-      {
-        "keyword": "検索用キーワードを絶対に1単語で指定(例: 焼肉)",
-        "parking": 0か1 (車や駐車場希望の文脈があれば1、なければ0),
-        "private_room": 0か1 (個室希望があれば1、なければ0),
-        "free_food": 0か1 (食べ放題希望があれば1、なければ0)
-      }`;
+      prompt += `\n\n今の気分・条件: "${rawKeyword || '特になし'}"\n普段よく行くお店の系統: "${favoriteShop || '特になし'}"\n過去のLIKE履歴: "${historyText}"\n
+      【出力JSONフォーマット】\n{ "keyword": "検索用1単語", "parking": 0か1, "private_room": 0か1, "free_food": 0か1 }`;
 
       const result = await model.generateContent(prompt);
       const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
@@ -69,7 +67,6 @@ export async function GET(request) {
     }
   }
 
-  // 📦 1: ホットペッパーAPIから取得
   let hpShops = [];
   let hpUrl = `https://webservice.recruit.co.jp/hotpepper/gourmet/v1/?key=${hotpepperKey}&format=json&count=10`;
 
@@ -92,13 +89,10 @@ export async function GET(request) {
     console.error('ホットペッパーAPIエラー:', error);
   }
 
-  // 📦 2: Google Places APIから取得
   let googleShops = [];
-  
   if (!googleKey) {
-    googleShops = [{ id: 'no-google-key', name: '[G] ⚠️Googleの鍵がないよ！', photo: { pc: { l: '' } }, genre: { name: '環境変数エラー' }, budget: { name: '', average: '' }, lat: lat || '34.69', lng: lng || '135.19', address: '設定を確認してね', access: '', open: '', urls: { pc: '' }, dataSource: 'error' }];
+    googleShops = [{ id: 'error', name: '[G] ⚠️エラー', dataSource: 'error' }];
   } else if (lat && lng) {
-    // 👇 ここ！ lng= を消して正しい形式（location=lat,lng）に修正した！
     let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=restaurant&key=${googleKey}&language=ja`;
     if (apiParams.keyword) googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
     
@@ -106,30 +100,34 @@ export async function GET(request) {
       const gRes = await fetch(googleUrl);
       const gData = await gRes.json();
       
-      if (gData.status !== 'OK' && gData.status !== 'ZERO_RESULTS') {
-        googleShops = [{ id: 'google-api-error', name: `[G] ⚠️エラー: ${gData.status}`, photo: { pc: { l: '' } }, genre: { name: 'APIエラー' }, budget: { name: '', average: '' }, lat: lat, lng: lng, address: gData.error_message || '', access: '', open: '', urls: { pc: '' }, dataSource: 'error' }];
-      } else {
-        const googleResults = gData.results || [];
-        googleShops = googleResults.map((place) => {
+      if (gData.status === 'OK' || gData.status === 'ZERO_RESULTS') {
+        const rawGoogleResults = gData.results || [];
+        
+        // 🌟 分岐：学生なら高級店を弾く。大人なら全部OK！
+        const filteredGoogleResults = rawGoogleResults.filter(place => {
+          if (userType === 'student' && place.price_level >= 3) return false;
+          return true;
+        });
+
+        googleShops = filteredGoogleResults.map((place) => {
           const photoUrl = place.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=500&photoreference=${place.photos[0].photo_reference}&key=${googleKey}` : null;
           let budgetName = '現地でチェック！';
           if (place.price_level === 1) budgetName = '💰 コスパ最強（安め）';
           if (place.price_level === 2) budgetName = '💰 ちょうどいい（標準）';
-          if (place.price_level === 3) budgetName = '💰 ごほうび飯（高め）';
-
-          const ratingText = place.rating && place.user_ratings_total ? `⭐️ ${place.rating} (${place.user_ratings_total.toLocaleString()}件の口コミ)` : 'Googleマップの隠れた名店';
+          if (place.price_level === 3) budgetName = '💰 ちょっと贅沢（高め）';
+          if (place.price_level === 4) budgetName = '💰 ガチ高級店（超高め）';
 
           return {
             id: place.place_id,
             name: `[G] ${place.name}`,
             photo: { pc: { l: photoUrl } },
-            genre: { name: ratingText },
+            genre: { name: place.rating ? `⭐️ ${place.rating} (${place.user_ratings_total}件)` : '名店' },
             budget: { name: budgetName, average: budgetName },
             lat: place.geometry.location.lat.toString(),
             lng: place.geometry.location.lng.toString(),
-            address: place.vicinity || '住所情報なし',
-            access: 'Googleマップで詳細ルートを確認してね！',
-            open: '詳細は下のボタンからマップをチェック！',
+            address: place.vicinity || '',
+            access: 'Googleマップで詳細を確認！',
+            open: '詳細はマップをチェック！',
             urls: { pc: `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` },
             dataSource: 'google',
             reviewCount: place.user_ratings_total || 0
@@ -137,11 +135,10 @@ export async function GET(request) {
         });
       }
     } catch (error) {
-      console.error('Google Places API通信エラー:', error);
+      console.error('Google APIエラー:', error);
     }
   }
 
-  // 📦 3: 合体＆シャッフル
   const combinedShops = [...hpShops, ...googleShops];
   for (let i = combinedShops.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
