@@ -14,19 +14,29 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 
 export default function SwipeApp() {
   const [myUserId, setMyUserId] = useState('');
-  const [loginName, setLoginName] = useState(''); // 🌟 ログイン入力用
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // 🌟 ログイン状態
+  const [loginName, setLoginName] = useState(''); 
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
   const [roomId, setRoomId] = useState(null);
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [favoriteShop, setFavoriteShop] = useState(''); 
   const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
+  
+  // 自分のスワイプ用
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+
+  // 🌟 新機能：対面タイマンモード用の状態（state）群
+  const [isVersusMode, setIsVersusMode] = useState(false);
+  const [friendCards, setFriendCards] = useState([]);
+  const [friendStartX, setFriendStartX] = useState(0);
+  const [friendCurrentX, setFriendCurrentX] = useState(0);
+  const [friendIsDragging, setFriendIsDragging] = useState(false);
+  const [versusLikes, setVersusLikes] = useState({ me: [], friend: [] });
+
   const [swipeLogs, setSwipeLogs] = useState([]);
-  
   const [matchData, setMatchData] = useState(null);
   const [matchedShops, setMatchedShops] = useState([]); 
   const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false); 
@@ -38,6 +48,7 @@ export default function SwipeApp() {
   const channelRef = useRef(null);
   const tapCountRef = useRef(0);
   const hasVibratedRef = useRef(false);
+  const friendVibratedRef = useRef(false);
 
   const [selectedShop, setSelectedShop] = useState(null);
   const [trendingShops, setTrendingShops] = useState([]);
@@ -47,7 +58,6 @@ export default function SwipeApp() {
     setSearchKeyword(keyword);
   };
 
-  // 🌟 ログイン処理関数
   const handleLogin = () => {
     if (!loginName.trim()) return;
     localStorage.setItem('swipe_app_user', loginName.trim());
@@ -55,7 +65,6 @@ export default function SwipeApp() {
     setIsLoggedIn(true);
   };
 
-  // 🌟 ログアウト処理関数
   const handleLogout = () => {
     localStorage.removeItem('swipe_app_user');
     setIsLoggedIn(false);
@@ -71,11 +80,14 @@ export default function SwipeApp() {
       const lng = searchParams.get('lng') || myLocation.lng || '';
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
       const favorite = searchParams.get('favorite') || favoriteShop || '';
-      const user = searchParams.get('user_id') || myUserId || ''; // 🌟 AIに渡す
+      const user = searchParams.get('user_id') || myUserId || ''; 
       
       const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}&user_id=${encodeURIComponent(user)}`);
       const data = await res.json();
-      if (Array.isArray(data)) setCards(data);
+      if (Array.isArray(data)) {
+        setCards(data);
+        setFriendCards([...data]); // 🌟 タイマンモード用にも同じ束をコピー！
+      }
     } catch (error) {
       console.error('通信エラー:', error);
     } finally {
@@ -120,7 +132,6 @@ export default function SwipeApp() {
   }, [roomId]);
 
   useEffect(() => {
-    // 🌟 保存されたユーザー名があれば自動ログイン
     const savedUser = localStorage.getItem('swipe_app_user');
     if (savedUser) {
       setMyUserId(savedUser);
@@ -239,8 +250,9 @@ export default function SwipeApp() {
   };
 
   const copyRoomUrl = () => { navigator.clipboard.writeText(window.location.href); alert('URLをコピーしたよ！友達に送ろう！'); };
-  const handlePointerDown = (e) => { setStartX(e.clientX); setIsDragging(true); hasVibratedRef.current = false; };
   
+  // 🖐️ 自分のスワイプ制御
+  const handlePointerDown = (e) => { setStartX(e.clientX); setIsDragging(true); hasVibratedRef.current = false; };
   const handlePointerMove = (e) => { 
     if (!isDragging) return; 
     setCurrentX(e.clientX - startX); 
@@ -249,21 +261,64 @@ export default function SwipeApp() {
       hasVibratedRef.current = true;
     } else if (Math.abs(e.clientX - startX) <= 150) { hasVibratedRef.current = false; }
   };
-  
   const handlePointerUp = async () => {
     if (!isDragging) return; setIsDragging(false); hasVibratedRef.current = false;
     if (Math.abs(currentX) > 150) {
       const swipedCard = cards[0]; setCards((prev) => prev.slice(1));
-      await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: currentX > 0 }]);
+      const isLike = currentX > 0;
+      
+      // タイマンモード中のローカルマッチ判定
+      if (isVersusMode) {
+        await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
+        if (isLike) {
+          if (versusLikes.friend.includes(swipedCard.name)) {
+            setMatchData({ restaurant_name: swipedCard.name });
+            setMatchedShops(prev => Array.from(new Set([...prev, swipedCard.name])));
+          } else {
+            setVersusLikes(prev => ({ ...prev, me: [...prev.me, swipedCard.name] }));
+          }
+        }
+      } else {
+        await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
+      }
     } else if (Math.abs(currentX) < 5) { setSelectedShop(cards[0]); }
     setCurrentX(0);
+  };
+
+  // 🌟 新機能：友達側（対面）のスワイプ制御（180度反転を考慮！）
+  const handleFriendPointerDown = (e) => { setFriendStartX(e.clientX); setFriendIsDragging(true); friendVibratedRef.current = false; };
+  const handleFriendPointerMove = (e) => {
+    if (!friendIsDragging) return;
+    // 180度ひっくり返っているので、友達にとっての「右」は自分にとっての「左（マイナス）」になる。よって引き算を逆転！
+    const moveX = friendStartX - e.clientX; 
+    setFriendCurrentX(moveX);
+    if (Math.abs(moveX) > 150 && !friendVibratedRef.current) {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
+      friendVibratedRef.current = true;
+    } else if (Math.abs(moveX) <= 150) { friendVibratedRef.current = false; }
+  };
+  const handleFriendPointerUp = async () => {
+    if (!friendIsDragging) return; setFriendIsDragging(false); friendVibratedRef.current = false;
+    if (Math.abs(friendCurrentX) > 150) {
+      const swipedCard = friendCards[0]; setFriendCards((prev) => prev.slice(1));
+      const isLike = friendCurrentX > 0;
+      
+      await supabase.from('swipes').insert([{ room_id: roomId, user_id: 'friend_face_to_face', restaurant_name: swipedCard.name, is_like: isLike }]);
+      if (isLike) {
+        if (versusLikes.me.includes(swipedCard.name)) {
+          setMatchData({ restaurant_name: swipedCard.name });
+          setMatchedShops(prev => Array.from(new Set([...prev, swipedCard.name])));
+        } else {
+          setVersusLikes(prev => ({ ...prev, friend: [...prev.friend, swipedCard.name] }));
+        }
+      }
+    } else if (Math.abs(friendCurrentX) < 5) { setSelectedShop(friendCards[0]); }
+    setFriendCurrentX(0);
   };
 
   if (!roomId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 pb-20">
-        
-        {/* 🌟 新機能：ログイン / マイページ表示エリア */}
         <div className="w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex items-center justify-between">
           {isLoggedIn ? (
             <div className="flex items-center justify-between w-full">
@@ -276,13 +331,7 @@ export default function SwipeApp() {
             </div>
           ) : (
             <div className="flex gap-2 w-full">
-              <input 
-                type="text" 
-                value={loginName} 
-                onChange={(e) => setLoginName(e.target.value)} 
-                placeholder="名前を入力してマイAIを作る" 
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 text-gray-900" 
-              />
+              <input type="text" value={loginName} onChange={(e) => setLoginName(e.target.value)} placeholder="名前を入力してマイAIを作る" className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 text-gray-900" />
               <button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl active:scale-95 transition-transform">ログイン</button>
             </div>
           )}
@@ -344,6 +393,87 @@ export default function SwipeApp() {
     );
   }
 
+  // 🌟 新機能：対面タイマンモードのUIレンダリング（パカンと上下分割！）
+  if (isVersusMode) {
+    return (
+      <div className="flex flex-col h-screen w-full bg-gray-900 overflow-hidden relative">
+        {/* 1: 友達の画面（上半分・180度反転！） */}
+        <div className="h-1/2 w-full bg-orange-50/20 border-b border-dashed border-gray-600 relative overflow-hidden flex items-center justify-center rotate-180 select-none touch-none">
+          <div className="absolute top-2 font-black text-xs text-orange-400 tracking-widest animate-pulse">⚔️ 相手のスワイプエリア ⚔️</div>
+          <div className="relative w-64 h-72">
+            {friendCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center w-full h-full bg-gray-800 text-white rounded-3xl p-4 text-center">🏁 スワイプ終了！相方の結果を待とう</div>
+            ) : (
+              [...friendCards].reverse().map((card, idx) => {
+                const isTop = idx === friendCards.length - 1;
+                const cardStyle = isTop 
+                  ? { transform: `translateX(${-friendCurrentX}px) rotate(${-friendCurrentX * 0.08}deg)`, zIndex: 10 } 
+                  : { transform: 'scale(0.95) translateY(10px)', zIndex: 0 };
+                return (
+                  <div key={card.id} onPointerDown={isTop ? handleFriendPointerDown : null} onPointerMove={isTop ? handleFriendPointerMove : null} onPointerUp={isTop ? handleFriendPointerUp : null} onPointerLeave={isTop ? handleFriendPointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden shadow-2xl transition-transform duration-75">
+                    {card.photo?.pc?.l ? <img src={card.photo.pc.l} className="w-full h-1/2 object-cover" pointerEvents="none" /> : <div className="w-full h-1/2 bg-gray-100 flex items-center justify-center">🍽️</div>}
+                    <div className="p-4 bg-white h-1/2 flex flex-col justify-between">
+                      <h3 className="font-black text-gray-900 text-base leading-tight line-clamp-2">{card.name}</h3>
+                      <p className="text-gray-500 text-xs truncate">{card.genre?.name}</p>
+                    </div>
+                    {isTop && Math.abs(friendCurrentX) > 50 && ( <div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${friendCurrentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{friendCurrentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* 中央のコントロールバー（モードを抜けるボタン） */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+          <button onClick={() => setIsVersusMode(false)} className="bg-gray-800 text-white font-black text-xs py-2 px-4 rounded-full border-2 border-gray-600 shadow-xl active:scale-95 transition-transform">
+            ✕ 対戦終了
+          </button>
+        </div>
+
+        {/* 2: 自分の画面（下半分・通常向き） */}
+        <div className="h-1/2 w-full bg-blue-50/10 relative overflow-hidden flex items-center justify-center select-none touch-none">
+          <div className="absolute bottom-2 font-black text-xs text-blue-400 tracking-widest animate-pulse">⚔️ あなたのスワイプエリア ⚔️</div>
+          <div className="relative w-64 h-72">
+            {cards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center w-full h-full bg-gray-800 text-white rounded-3xl p-4 text-center">🏁 スワイプ終了！相手の結果を待とう</div>
+            ) : (
+              [...cards].reverse().map((card, idx) => {
+                const isTop = idx === cards.length - 1;
+                const cardStyle = isTop 
+                  ? { transform: `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`, zIndex: 10 } 
+                  : { transform: 'scale(0.95) translateY(10px)', zIndex: 0 };
+                return (
+                  <div key={card.id} onPointerDown={isTop ? handlePointerDown : null} onPointerMove={isTop ? handlePointerMove : null} onPointerUp={isTop ? handlePointerUp : null} onPointerLeave={isTop ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden shadow-2xl transition-transform duration-75">
+                    {card.photo?.pc?.l ? <img src={card.photo.pc.l} className="w-full h-1/2 object-cover" pointerEvents="none" /> : <div className="w-full h-1/2 bg-gray-100 flex items-center justify-center">🍽️</div>}
+                    <div className="p-4 bg-white h-1/2 flex flex-col justify-between">
+                      <h3 className="font-black text-gray-900 text-base leading-tight line-clamp-2">{card.name}</h3>
+                      <p className="text-gray-500 text-xs truncate">{card.genre?.name}</p>
+                    </div>
+                    {isTop && Math.abs(currentX) > 50 && ( <div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${currentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* ローカルマッチ時のポップアップ */}
+        {matchData && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-fade-in">
+            <div className="bg-white rounded-[2rem] p-8 m-4 shadow-2xl flex flex-col items-center text-center border-4 border-pink-400">
+              <div className="text-5xl mb-2">🎉 ⚔️ 🎉</div>
+              <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400 tracking-tight mb-2">対面マッチ成立！</h2>
+              <p className="text-gray-500 font-bold mb-4 text-xs">2人の意見がその場で完全に一致したぜ！</p>
+              <p className="text-xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full">{matchData.restaurant_name}</p>
+              <button onClick={() => setMatchData(null)} className="mt-6 bg-gray-900 text-white font-bold py-3 px-8 rounded-full w-full">対戦を続ける</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 overflow-hidden relative pb-10">
       <style>{`
@@ -353,9 +483,12 @@ export default function SwipeApp() {
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
       <h1 className="text-2xl font-extrabold mb-2 text-gray-800 mt-4">今日のごはん何にする？</h1>
-      <div className="flex gap-3 mb-4 z-20 relative">
-        <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🏠 最初から</button>
-        <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-5 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待</button>
+      
+      {/* 🌟 改良ポイント：友達を招待の横に「対面タイマン」ボタンを配置！ */}
+      <div className="flex gap-2 mb-4 z-20 relative flex-wrap justify-center">
+        <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🏠 最初から</button>
+        <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待</button>
+        <button onClick={() => { setIsVersusMode(true); setVersusLikes({ me: [], friend: [] }); }} className="bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black text-sm py-2 px-4 rounded-full shadow-md active:scale-95 transition-all">⚔️ 対面タイマン</button>
       </div>
 
       <div className="relative w-80 h-96 mb-6">
