@@ -17,7 +17,7 @@ export async function GET(request) {
   const rawKeyword = searchParams.get('keyword'); 
   const favoriteShop = searchParams.get('favorite'); 
   const userId = searchParams.get('user_id');
-  const userType = searchParams.get('user_type') || 'student'; // 🌟 新機能：学生か大人かを受け取る
+  const userType = searchParams.get('user_type') || 'student';
 
   const range = '5'; 
   let apiParams = { keyword: '' };
@@ -41,10 +41,9 @@ export async function GET(request) {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       
-      // 🌟 分岐：モードによってAIへの指示（洗脳）を完全に切り替える！
       let prompt = '';
       if (userType === 'adult') {
-        prompt = `あなたは『社会人・大人』向けの飲食店検索コンシェルジュです。
+        prompt = `あなたは『社会人・大人』向けの飲食店 Restaurant 検索コンシェルジュです。
         ユーザーの「今の気分」「好きな店の系統」「過去にLIKEした履歴」を分析し、今最も刺さる検索条件を1単語で抽出してください。
         【絶対のルール】落ち着いた雰囲気、会社宴会、デート、接待、少し贅沢な食事などに使えるお店を意識してください。
         出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
@@ -84,7 +83,12 @@ export async function GET(request) {
   try {
     const res = await fetch(hpUrl);
     const data = await res.json();
-    hpShops = (data.results?.shop || []).map(shop => ({ ...shop, dataSource: 'hotpepper' }));
+    // 🌟 変更点：マッピングの中に「card（クレカ決済情報）」を追加！
+    hpShops = (data.results?.shop || []).map(shop => ({ 
+      ...shop, 
+      dataSource: 'hotpepper',
+      card: shop.card || '現地で確認'
+    }));
   } catch (error) {
     console.error('ホットペッパーAPIエラー:', error);
   }
@@ -103,7 +107,6 @@ export async function GET(request) {
       if (gData.status === 'OK' || gData.status === 'ZERO_RESULTS') {
         const rawGoogleResults = gData.results || [];
         
-        // 🌟 分岐：学生なら高級店を弾く。大人なら全部OK！
         const filteredGoogleResults = rawGoogleResults.filter(place => {
           if (userType === 'student' && place.price_level >= 3) return false;
           return true;
@@ -130,7 +133,8 @@ export async function GET(request) {
             open: '詳細はマップをチェック！',
             urls: { pc: `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` },
             dataSource: 'google',
-            reviewCount: place.user_ratings_total || 0
+            reviewCount: place.user_ratings_total || 0,
+            card: '現地で確認' // Googleはデータを持っていないため一律設定
           };
         });
       }

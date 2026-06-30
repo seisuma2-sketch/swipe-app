@@ -23,9 +23,6 @@ export default function SwipeApp() {
   const [favoriteShop, setFavoriteShop] = useState(''); 
   const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
   
-  // 🌟 新機能：学生モード or 大人モードの切り替え
-  const [userType, setUserType] = useState('student');
-
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -55,6 +52,9 @@ export default function SwipeApp() {
 
   const [selectedShop, setSelectedShop] = useState(null);
   const [trendingShops, setTrendingShops] = useState([]);
+  
+  // 🌟 新機能：混雑タレコミのリアルタイムログ保存用
+  const [crowdReports, setCongestionReports] = useState({});
 
   const applyPreset = (fav, keyword) => {
     setFavoriteShop(fav);
@@ -84,7 +84,7 @@ export default function SwipeApp() {
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
       const favorite = searchParams.get('favorite') || favoriteShop || '';
       const user = searchParams.get('user_id') || myUserId || ''; 
-      const utype = searchParams.get('user_type') || userType; // 🌟 追加
+      const utype = searchParams.get('user_type') || userType; 
       
       const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}&user_id=${encodeURIComponent(user)}&user_type=${encodeURIComponent(utype)}`);
       const data = await res.json();
@@ -102,6 +102,30 @@ export default function SwipeApp() {
   const handleOkawari = (mood) => {
     setSearchKeyword(mood);
     fetchShops(mood);
+  };
+
+  // 🌟 新機能：今の混み具合をルーム内の仲間に向けてチクる（送信）
+  const sendCrowdReport = (status) => {
+    if (!selectedShop) return;
+    const report = {
+      shopName: selectedShop.name,
+      user: myUserId || 'だれか',
+      status: status,
+      time: 'たった今'
+    };
+    
+    // 自分の画面に反映
+    setCongestionReports(prev => ({ ...prev, [selectedShop.name]: report }));
+
+    // ルーム内の他ユーザーに電波（Broadcast）で送信！
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'crowd_report',
+        payload: report
+      });
+    }
+    alert(`「${status}」ってチクっておいたぜ！📣`);
   };
 
   useEffect(() => {
@@ -180,6 +204,10 @@ export default function SwipeApp() {
         (payload) => { startRouletteAnimation(payload.new.winner_restaurant_name); }
       )
       .on('broadcast', { event: 'fly_item' }, (payload) => { triggerFly(payload.payload.content, payload.payload.type, payload.payload.x); })
+      // 🌟 新機能：他の人から届いた混雑タレコミを受信して反映！
+      .on('broadcast', { event: 'crowd_report' }, (payload) => {
+        setCongestionReports(prev => ({ ...prev, [payload.payload.shopName]: payload.payload }));
+      })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -295,11 +323,12 @@ export default function SwipeApp() {
     setFriendCurrentX(0);
   };
 
+  const [userType, setUserType] = useState('student');
+
   if (!roomId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 pb-20 overflow-x-hidden">
         <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-8 items-center md:items-start justify-center pt-4 md:pt-10">
-          
           <div className="w-full max-w-sm md:max-w-md flex flex-col gap-6">
             <div className="w-full bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex items-center justify-between">
               {isLoggedIn ? (
@@ -318,12 +347,10 @@ export default function SwipeApp() {
                 </div>
               )}
             </div>
-
             <div className="text-center md:text-left flex flex-col items-center md:items-start">
               <div className="text-6xl mb-4 drop-shadow-md">📍</div>
               <h1 className="text-3xl md:text-4xl font-extrabold mb-2 text-gray-800 tracking-tight leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
             </div>
-            
             {trendingShops.length > 0 && (
               <div className="w-full">
                 <h2 className="text-sm font-black text-orange-500 mb-3 flex items-center gap-2"><span className="animate-pulse">🔥</span> みんなのガチ狙い人気店</h2>
@@ -338,33 +365,22 @@ export default function SwipeApp() {
                     </div>
                   ))}
                 </div>
-                <style jsx>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
               </div>
             )}
           </div>
-
           <div className="w-full max-w-sm md:max-w-md flex flex-col gap-6 md:sticky md:top-8">
-            
-            {/* 🌟 新機能：学生・大人の切り替えトグル */}
             <div className="w-full flex bg-gray-200 rounded-full p-1 shadow-inner">
-              <button onClick={() => setUserType('student')} className={`flex-1 text-sm font-black py-2.5 rounded-full transition-all ${userType === 'student' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                🎓 学生モード
-              </button>
-              <button onClick={() => setUserType('adult')} className={`flex-1 text-sm font-black py-2.5 rounded-full transition-all ${userType === 'adult' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>
-                👔 大人モード
-              </button>
+              <button onClick={() => setUserType('student')} className={`flex-1 text-sm font-black py-2.5 rounded-full transition-all ${userType === 'student' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>🎓 学生モード</button>
+              <button onClick={() => setUserType('adult')} className={`flex-1 text-sm font-black py-2.5 rounded-full transition-all ${userType === 'adult' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}>👔 大人モード</button>
             </div>
-
             <div className="w-full bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
               <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">💡 えらぶだけで自動入力！</label>
-              
-              {/* 🌟 新機能：モードによってプリセットボタンが切り替わる！ */}
               {userType === 'student' ? (
                 <div className="flex flex-wrap gap-2 animate-fade-in">
                   <button type="button" onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')} className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all">💸 金欠ガッツリ</button>
                   <button type="button" onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')} className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all">🍜 ドライブ麺</button>
                   <button type="button" onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')} className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all">🕒 深夜の夜食</button>
-                  <button type="button" onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる居酒屋')} className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all">🍻 サークル飲み</button>
+                  <button type="button" onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')} className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all">🍻 サークル飲み</button>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 animate-fade-in">
@@ -375,26 +391,21 @@ export default function SwipeApp() {
                 </div>
               )}
             </div>
-
             <div className="w-full">
               <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
               <input type="text" value={favoriteShop} onChange={(e) => setFavoriteShop(e.target.value)} placeholder="例: サイゼリヤ、一蘭、丸源" className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" />
             </div>
-
             <div className="w-full">
               <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
               <textarea value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="例: 金欠だけど男3人でガッツリ食べたい！" className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" />
             </div>
-
             {isLoading ? ( 
               <div className="flex flex-col items-center gap-3 py-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                 <p className="text-gray-500 font-bold">AIがお店を厳選中...</p>
               </div>
             ) : (
-              <button onClick={createNewRoom} className={`mt-2 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-all w-full justify-center ${userType === 'student' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                <span>✨</span> AIに探してもらう
-              </button>
+              <button onClick={createNewRoom} className={`mt-2 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-all w-full justify-center ${userType === 'student' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}><span>✨</span> AIに探してもらう</button>
             )}
           </div>
         </div>
@@ -402,7 +413,6 @@ export default function SwipeApp() {
     );
   }
 
-  // --- これ以降のスワイプ画面等は変更なし ---
   if (isVersusMode) {
     return (
       <div className="flex flex-col h-screen w-full bg-gray-900 overflow-hidden relative">
@@ -416,9 +426,7 @@ export default function SwipeApp() {
               </div>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center relative">
-              <button onClick={() => setShowTutorial(false)} className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black px-10 py-4 rounded-full z-10 active:scale-95 shadow-[0_0_30px_rgba(236,72,153,0.6)] text-lg animate-pulse border-2 border-white">
-                バトル開始！
-              </button>
+              <button onClick={() => setShowTutorial(false)} className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black px-10 py-4 rounded-full z-10 active:scale-95 shadow-[0_0_30px_rgba(236,72,153,0.6)] text-lg animate-pulse border-2 border-white">バトル開始！</button>
               <p className="text-gray-400 font-bold mb-6 text-sm tracking-widest mt-8">【 あなたの画面 】</p>
               <div className="flex gap-12">
                 <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👈</span><span className="text-red-500 font-black text-2xl drop-shadow-md">NOPE<br/><span className="text-sm">ちがう</span></span></div>
@@ -515,7 +523,7 @@ export default function SwipeApp() {
       <div className="flex gap-2 mb-6 z-20 relative flex-wrap justify-center">
         <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🏠 最初から</button>
         <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待</button>
-        <button onClick={() => { setIsVersusMode(true); setShowTutorial(true); setVersusLikes({ me: [], friend: [] }); }} className="bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black text-sm py-2 px-4 rounded-full shadow-md active:scale-95 transition-all">⚔️ 対面タイマン</button>
+        <button onClick={() => { setIsVersusMode(true); setShowTutorial(true); setVersusLikes({ me: [], friend: [] }); }} className="bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black text-sm py-2 px-4 rounded-full shadow-md active:scale-95 transition-all">⚔️ 对面タイマン</button>
       </div>
 
       <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-6xl mx-auto px-4">
@@ -598,45 +606,56 @@ export default function SwipeApp() {
             </ul>
           )}
         </div>
-
       </div>
-
-      {matchData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in px-4">
-          <div className="bg-white rounded-[2rem] p-6 shadow-2xl flex flex-col items-center text-center transform scale-100 animate-bounce-short border-4 border-pink-400 relative overflow-hidden w-full max-w-sm">
-            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 to-orange-400"></div>
-            <div className="text-6xl mb-2">🎉</div>
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400 tracking-tight mb-2">MATCH!</h2>
-            <p className="text-gray-500 font-bold mb-4 text-sm">誰かがこのお店をLIKEしました</p>
-            <p className="text-2xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full mb-6">{matchData.restaurant_name}</p>
-            <div className="flex flex-col gap-3 w-full">
-              {matchedShops.length >= 2 && (
-                <button onClick={() => { setMatchData(null); triggerRoulette(); }} className="bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-3 px-4 rounded-full shadow-md active:scale-95 transition-transform w-full animate-pulse text-sm">🎯 マッチ候補からルーレットで決める！</button>
-              )}
-              <button onClick={() => setMatchData(null)} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-full active:scale-95 transition-transform w-full text-sm">🗣 自分たちで話し合って決める（スワイプへ戻る）</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {selectedShop && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity" onPointerDown={() => setSelectedShop(null)}>
           <div className="bg-white w-full max-w-sm mx-auto rounded-[2rem] shadow-2xl animate-slide-up relative max-h-[85vh] overflow-y-auto" onPointerDown={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedShop(null)} className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold z-10 backdrop-blur-md transition-colors">✕</button>
             {selectedShop.photo?.pc?.l && ( <img src={selectedShop.photo.pc.l} alt={selectedShop.name} className="w-full h-48 object-cover" /> )}
+            
             <div className="p-6">
               <p className="text-blue-500 text-xs font-bold mb-1">{selectedShop.genre?.name}</p>
               <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{selectedShop.name}</h3>
+              
+              {/* 🌟 新機能：リアルタイム混雑タレコミ情報の表示バッジ */}
+              {crowdReports[selectedShop.name] && (
+                <div className="mb-4 bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-xs px-4 py-3 rounded-2xl shadow-md animate-pulse flex items-center justify-between">
+                  <span>📢 リアルタイム速報：{crowdReports[selectedShop.name].status}</span>
+                  <span className="text-[10px] bg-black/20 px-2 py-0.5 rounded-md">👤 {crowdReports[selectedShop.name].user}（{crowdReports[selectedShop.name].time}）</span>
+                </div>
+              )}
+
               <div className="mb-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 p-4 rounded-2xl shadow-inner text-center">
                 <p className="text-xs font-black text-amber-700 uppercase tracking-widest mb-1">💰 おさいふ安心ガイド 💰</p>
                 <h4 className="text-xl font-black text-gray-950 leading-snug">「{selectedShop.budget?.average || selectedShop.budget?.name || '2,000円〜3,000円'}」あれば足りそう！</h4>
                 <p className="text-[10px] text-amber-600 font-bold mt-1">※平均予算データより算出</p>
               </div>
+
+              {/* 🌟 新機能：支払い方法のステータス表示 */}
+              <div className="mb-4 bg-gray-50 border border-gray-200 p-3 rounded-2xl flex items-center justify-between text-xs">
+                <span className="font-bold text-gray-500">💳 キャッシュレス対応:</span>
+                <span className="bg-blue-100 text-blue-700 font-black px-3 py-1 rounded-lg shadow-sm max-w-[200px] truncate">
+                  {selectedShop.card || '現地でチェック！'}
+                </span>
+              </div>
+
+              {/* 🌟 新機能：今の混み具合を他の奴らにチクるボタン */}
+              <div className="mb-6 bg-orange-50/50 border border-orange-100 p-3 rounded-2xl text-center">
+                <p className="text-[11px] font-black text-orange-600 mb-2">🔥 お店に着いたら今の状況をチクろうぜ！</p>
+                <div className="flex gap-2 justify-center">
+                  <button onClick={() => sendCrowdReport('🟢 すぐ入れる！')} className="bg-green-500 text-white text-[11px] font-black px-3 py-2 rounded-xl shadow active:scale-95 transition-transform">🟢 空いてる</button>
+                  <button onClick={() => sendCrowdReport('🟡 少し待つ（5〜10分）')} className="bg-yellow-500 text-white text-[11px] font-black px-3 py-2 rounded-xl shadow active:scale-95 transition-transform">🟡 少し待つ</button>
+                  <button onClick={() => sendCrowdReport('🔴 激混み（大行列）')} className="bg-red-500 text-white text-[11px] font-black px-3 py-2 rounded-xl shadow active:scale-95 transition-transform">🔴 激混み</button>
+                </div>
+              </div>
+
               <div className="space-y-2 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100 text-xs">
                 <p className="text-gray-700 flex items-start gap-2"><span className="text-sm">🚃</span><span className="flex-1 leading-snug"><strong>アクセス:</strong> {selectedShop.access || '情報なし'}</span></p>
                 <p className="text-gray-700 flex items-start gap-2"><span className="text-sm">📍</span><span className="flex-1 leading-snug"><strong>住所:</strong> {selectedShop.address || '情報なし'}</span></p>
                 <p className="text-gray-700 flex items-start gap-2"><span className="text-sm">🕒</span><span className="flex-1 leading-snug"><strong>営業時間:</strong> {selectedShop.open || '情報なし'}</span></p>
               </div>
+
               {selectedShop.urls?.pc && (
                 selectedShop.dataSource === 'google' ? (
                   <a href={selectedShop.urls.pc} target="_blank" rel="noopener noreferrer" className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm">📍 マップで今の混み具合をチェック！ ↗</a>
@@ -656,14 +675,14 @@ export default function SwipeApp() {
             <h3 className="text-2xl font-black text-gray-800 mb-6">🎰 ど・れ・に・す・る？</h3>
             <div className="relative w-64 h-64 mb-8 flex items-center justify-center">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[15px] border-l-transparent border-r-[15px] border-r-transparent border-t-[25px] border-t-red-500 z-30 drop-shadow-md"></div>
-              <div style={{ transform: `rotate(${rouletteRotation}deg)`, transition: isSpinning ? 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)' : 'none' }} className="w-full h-full rounded-full border-8 border-gray-900 bg-gradient-to-tr from-yellow-300 via-pink-400 to-indigo-400 relative overflow-hidden flex items-center justify-center shadow-2xl">
+              <div style={{ transform: `rotate(${rouletteRotation}deg)`, transition: isSpinning ? 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)' : 'none' }} className="w-full h-full border-8 border-gray-900 bg-gradient-to-tr from-yellow-300 via-pink-400 to-indigo-400 relative overflow-hidden flex items-center justify-center shadow-2xl">
                 <div className="w-8 h-8 rounded-full bg-white border-4 border-gray-900 z-20 shadow-md"></div>
                 <p className="text-white font-black text-xl z-10 rotate-45">❓</p>
                 <p className="text-white font-black text-xl z-10 -rotate-45">✨</p>
               </div>
             </div>
             {rouletteWinner && (
-              <div className="w-full bg-gradient-to-b from-yellow-50 to-amber-100 p-5 rounded-2xl border-2 border-yellow-400 shadow-inner animate-bounce-short pointer-events-auto">
+              <div className="w-full bg-gradient-to-b from-yellow-50 to-amber-100 p-5 rounded-2xl border-2 border-yellow-400 shadow-inner bounce-short pointer-events-auto">
                 <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-1">👑 今日のごはんはココ！</p>
                 <h4 className="text-2xl font-black text-gray-900 leading-snug">{rouletteWinner}</h4>
               </div>
