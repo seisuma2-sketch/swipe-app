@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabaseのクライアントを裏側でも初期化
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -17,12 +16,11 @@ export async function GET(request) {
   const lng = searchParams.get('lng');
   const rawKeyword = searchParams.get('keyword'); 
   const favoriteShop = searchParams.get('favorite'); 
-  const userId = searchParams.get('user_id'); // 🌟 新しいパラメータ
+  const userId = searchParams.get('user_id');
 
   const range = '5'; 
   let apiParams = { keyword: '' };
 
-  // 🌟 新機能：ログインユーザーの過去のLIKE履歴を取得してAIに食わせる！
   let historyText = "特になし";
   if (userId) {
     const { data: historyData } = await supabase
@@ -100,7 +98,8 @@ export async function GET(request) {
   if (!googleKey) {
     googleShops = [{ id: 'no-google-key', name: '[G] ⚠️Googleの鍵がないよ！', photo: { pc: { l: '' } }, genre: { name: '環境変数エラー' }, budget: { name: '', average: '' }, lat: lat || '34.69', lng: lng || '135.19', address: '設定を確認してね', access: '', open: '', urls: { pc: '' }, dataSource: 'error' }];
   } else if (lat && lng) {
-    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},lng=${lng}&radius=3000&type=restaurant&key=${googleKey}&language=ja`;
+    // 👇 ここ！ lng= を消して正しい形式（location=lat,lng）に修正した！
+    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=restaurant&key=${googleKey}&language=ja`;
     if (apiParams.keyword) googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
     
     try {
