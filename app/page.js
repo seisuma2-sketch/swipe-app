@@ -311,79 +311,93 @@ export default function SwipeApp() {
     setFriendCurrentX(0);
   };
 
+  // 🌟 変更点：最初の画面のPCレスポンシブ化（md:flex-rowで2カラムに！）
   if (!roomId) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 pb-20">
-        <div className="w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex items-center justify-between">
-          {isLoggedIn ? (
-            <div className="flex items-center justify-between w-full">
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-gray-400">ログイン中</span>
-                <span className="text-sm font-black text-gray-800">👤 {myUserId} さん</span>
-                <span className="text-[10px] text-green-500 font-bold mt-0.5 animate-pulse">🤖 あなたの好みをAI学習中！</span>
-              </div>
-              <button onClick={handleLogout} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 active:scale-95 transition-transform">ログアウト</button>
-            </div>
-          ) : (
-            <div className="flex gap-2 w-full">
-              <input type="text" value={loginName} onChange={(e) => setLoginName(e.target.value)} placeholder="名前を入力してマイAIを作る" className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 text-gray-900" />
-              <button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl active:scale-95 transition-transform">ログイン</button>
-            </div>
-          )}
-        </div>
-
-        <div className="text-6xl mb-4 drop-shadow-md">📍</div>
-        <h1 className="text-3xl font-extrabold mb-6 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 pb-20 overflow-x-hidden">
         
-        {trendingShops.length > 0 && (
-          <div className="mb-8 w-full max-w-sm">
-            <h2 className="text-sm font-black text-orange-500 mb-3 flex items-center gap-2"><span className="animate-pulse">🔥</span> みんなのガチ狙い人気店</h2>
-            <div className="flex overflow-x-auto gap-3 pb-4 snap-x hide-scrollbar">
-              {trendingShops.map((shop, i) => (
-                <div key={i} onClick={() => setFavoriteShop(shop.name)} className="min-w-[140px] bg-white p-3 rounded-2xl shadow-sm border border-gray-200 cursor-pointer snap-start hover:border-orange-300 active:scale-95 transition-all flex flex-col justify-between">
-                  <div>
-                    <div className="text-[10px] font-black text-gray-400 mb-1">{i + 1}位</div>
-                    <div className="text-sm font-extrabold text-gray-800 line-clamp-2 leading-snug">{shop.name}</div>
+        <div className="w-full max-w-5xl mx-auto flex flex-col md:flex-row gap-8 items-center md:items-start justify-center pt-4 md:pt-10">
+          
+          {/* 左カラム：タイトル、ログイン、トレンド */}
+          <div className="w-full max-w-sm md:max-w-md flex flex-col gap-6">
+            <div className="w-full bg-white p-4 rounded-2xl shadow-sm border border-gray-200 flex items-center justify-between">
+              {isLoggedIn ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-gray-400">ログイン中</span>
+                    <span className="text-sm font-black text-gray-800">👤 {myUserId} さん</span>
+                    <span className="text-[10px] text-green-500 font-bold mt-0.5 animate-pulse">🤖 あなたの好みをAI学習中！</span>
                   </div>
-                  <div className="mt-2 flex items-center gap-1 text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-lg w-fit">❤️ {shop.count} LIKE</div>
+                  <button onClick={handleLogout} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 active:scale-95 transition-transform">ログアウト</button>
                 </div>
-              ))}
+              ) : (
+                <div className="flex gap-2 w-full">
+                  <input type="text" value={loginName} onChange={(e) => setLoginName(e.target.value)} placeholder="名前を入力してマイAIを作る" className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 text-gray-900" />
+                  <button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl active:scale-95 transition-transform">ログイン</button>
+                </div>
+              )}
             </div>
-            <p className="text-[10px] text-gray-400 font-bold mt-1 text-right">※タップで入力欄にセット！</p>
-            <style jsx>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+
+            <div className="text-center md:text-left flex flex-col items-center md:items-start">
+              <div className="text-6xl mb-4 drop-shadow-md">📍</div>
+              <h1 className="text-3xl md:text-4xl font-extrabold mb-2 text-gray-800 tracking-tight leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
+            </div>
+            
+            {trendingShops.length > 0 && (
+              <div className="w-full">
+                <h2 className="text-sm font-black text-orange-500 mb-3 flex items-center gap-2"><span className="animate-pulse">🔥</span> みんなのガチ狙い人気店</h2>
+                <div className="flex overflow-x-auto gap-3 pb-4 snap-x hide-scrollbar">
+                  {trendingShops.map((shop, i) => (
+                    <div key={i} onClick={() => setFavoriteShop(shop.name)} className="min-w-[140px] bg-white p-3 rounded-2xl shadow-sm border border-gray-200 cursor-pointer snap-start hover:border-orange-300 active:scale-95 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-black text-gray-400 mb-1">{i + 1}位</div>
+                        <div className="text-sm font-extrabold text-gray-800 line-clamp-2 leading-snug">{shop.name}</div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1 text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-lg w-fit">❤️ {shop.count} LIKE</div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 font-bold mt-1 text-right md:text-left">※タップで入力欄にセット！</p>
+                <style jsx>{`.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
+              </div>
+            )}
           </div>
-        )}
 
-        <div className="mb-6 w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
-          <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">💡 えらぶだけで自動入力！</label>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')} className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all">💸 金欠ガッツリ</button>
-            <button type="button" onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')} className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all">🍜 ドライブ麺</button>
-            <button type="button" onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')} className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all">🕒 深夜の夜食</button>
-            <button type="button" onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')} className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all">🍻 サークル飲み</button>
+          {/* 右カラム：条件入力、検索ボタン */}
+          <div className="w-full max-w-sm md:max-w-md flex flex-col gap-6 md:sticky md:top-8">
+            <div className="w-full bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+              <label className="block text-xs font-black text-gray-400 uppercase tracking-wider mb-2">💡 えらぶだけで自動入力！</label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => applyPreset('サイゼリヤ', '金欠だけど男3人でお腹いっぱいガッツリ食べたい！')} className="bg-pink-50 hover:bg-pink-100 text-pink-700 text-xs font-bold py-2 px-3 rounded-xl border border-pink-200 active:scale-95 transition-all">💸 金欠ガッツリ</button>
+                <button type="button" onClick={() => applyPreset('一蘭', '車で行くから、近くで駐車場がある美味いラーメン屋！')} className="bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-2 px-3 rounded-xl border border-blue-200 active:scale-95 transition-all">🍜 ドライブ麺</button>
+                <button type="button" onClick={() => applyPreset('ずんどう屋', '夜遅く、深夜でも開いててガツンと食べられる店')} className="bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold py-2 px-3 rounded-xl border border-amber-200 active:scale-95 transition-all">🕒 深夜の夜食</button>
+                <button type="button" onClick={() => applyPreset('', 'サークルの打ち上げ！大人数でワイワイできる個室のある居酒屋')} className="bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold py-2 px-3 rounded-xl border border-green-200 active:scale-95 transition-all">🍻 サークル飲み</button>
+              </div>
+            </div>
+
+            <div className="w-full">
+              <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
+              <input type="text" value={favoriteShop} onChange={(e) => setFavoriteShop(e.target.value)} placeholder="例: サイゼリヤ、一蘭、丸源" className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" />
+            </div>
+
+            <div className="w-full">
+              <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
+              <textarea value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="例: 金欠だけど男3人でガッツリ食べたい！" className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" />
+            </div>
+
+            {isLoading ? ( 
+              <div className="flex flex-col items-center gap-3 py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <p className="text-gray-500 font-bold">AIがお店を厳選中...</p>
+              </div>
+            ) : (
+              <button onClick={createNewRoom} className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-transform w-full justify-center">
+                <span>✨</span> AIに探してもらう
+              </button>
+            )}
           </div>
-        </div>
 
-        <div className="mb-4 w-full max-w-sm">
-          <label className="block text-sm font-bold text-gray-600 mb-1">❤️ 普段よく行く・好きなお店（任意）</label>
-          <input type="text" value={favoriteShop} onChange={(e) => setFavoriteShop(e.target.value)} placeholder="例: サイゼリヤ、一蘭、丸源" className="w-full px-5 py-3 border border-pink-300 rounded-xl shadow-sm focus:ring-4 focus:ring-pink-500/30 focus:outline-none text-gray-900 font-medium bg-pink-50" />
         </div>
-
-        <div className="mb-8 w-full max-w-sm">
-          <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
-          <textarea value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="例: 金欠だけど男3人でガッツリ食べたい！" className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" />
-        </div>
-
-        {isLoading ? ( 
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <p className="text-gray-500 font-bold">AIがお店を厳選中...</p>
-          </div>
-        ) : (
-          <button onClick={createNewRoom} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full shadow-xl text-lg flex items-center gap-2 active:scale-95 transition-transform w-full max-w-sm justify-center">
-            <span>✨</span> AIに探してもらう
-          </button>
-        )}
       </div>
     );
   }
@@ -471,7 +485,6 @@ export default function SwipeApp() {
           </div>
         </div>
 
-        {/* 🌟 変更点：対面タイマンモード用の最終決断ポップアップ！ */}
         {matchData && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-fade-in px-4">
             <div className="bg-white rounded-[2rem] p-6 shadow-2xl flex flex-col items-center text-center border-4 border-pink-400 w-full max-w-sm">
@@ -500,97 +513,116 @@ export default function SwipeApp() {
     );
   }
 
+  // 🌟 変更点：通常スワイプ画面のPCレスポンシブ化（lg:flex-rowで3カラムに！）
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 overflow-hidden relative pb-10">
+    <div className="flex flex-col items-center min-h-screen bg-gray-100 overflow-x-hidden relative pb-10 pt-4">
       <style>{`
         @keyframes floatUp { 0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } 100% { transform: translateY(-400px) scale(1.5) rotate(15deg); opacity: 0; } }
         .animate-float-up { animation: floatUp 1.5s ease-out forwards; }
         @keyframes slideUp { 0% { transform: translateY(100%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
-      <h1 className="text-2xl font-extrabold mb-2 text-gray-800 mt-4">今日のごはん何にする？</h1>
       
-      <div className="flex gap-2 mb-4 z-20 relative flex-wrap justify-center">
+      <h1 className="text-2xl font-extrabold mb-2 text-gray-800">今日のごはん何にする？</h1>
+      
+      <div className="flex gap-2 mb-6 z-20 relative flex-wrap justify-center">
         <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🏠 最初から</button>
         <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待</button>
         <button onClick={() => { setIsVersusMode(true); setShowTutorial(true); setVersusLikes({ me: [], friend: [] }); }} className="bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black text-sm py-2 px-4 rounded-full shadow-md active:scale-95 transition-all">⚔️ 対面タイマン</button>
       </div>
 
-      <div className="relative w-80 h-96 mb-6">
-        {isLoading ? ( 
-          <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500 mb-4"></div>
-            <p className="text-gray-500 font-bold">お店を探しています...</p>
-          </div>
-        ) : cards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center w-full h-full bg-white rounded-3xl shadow-lg border border-gray-100 p-6 text-center animate-fade-in">
-            <div className="text-4xl mb-2">🍽️</div>
-            <p className="text-gray-900 font-black text-base mb-1">お店がなくなっちゃった！</p>
-            <p className="text-gray-400 text-[11px] font-bold mb-4">今の気分を選んで「おかわり」しようぜ！</p>
-            <div className="flex flex-col gap-2 w-full">
-              <button onClick={() => handleOkawari('あっさり')} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2 px-4 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">🥗 あっさり・ヘルシー系</button>
-              <button onClick={() => handleOkawari('こってり')} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-black py-2 px-4 rounded-xl border border-orange-200 text-xs active:scale-95 transition-all">🍜 こってり・濃いめ系</button>
-              <button onClick={() => handleOkawari('肉')} className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-black py-2 px-4 rounded-xl border border-red-200 text-xs active:scale-95 transition-all">🥩 ガッツリお肉系</button>
-              <button onClick={() => handleOkawari('')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-2 px-4 rounded-xl text-xs active:scale-95 transition-all">🔄 条件なしで全リロード</button>
-            </div>
-          </div>
-        ) : (
-          [...cards].reverse().map((card, index) => {
-            const isTopCard = index === cards.length - 1;
-            const distance = calculateDistance(myLocation.lat, myLocation.lng, parseFloat(card.lat), parseFloat(card.lng));
-            const cardStyle = isTopCard
-              ? { transform: `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', zIndex: 10, boxShadow: isDragging ? `0px ${Math.abs(currentX) / 10 + 20}px ${Math.abs(currentX) / 5 + 30}px rgba(0,0,0,${Math.min(Math.abs(currentX) / 500 + 0.1, 0.3)})` : '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }
-              : { transform: 'scale(0.95) translateY(10px)', transition: 'transform 0.3s ease-out', zIndex: 0 };
-
-            return (
-              <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
-                <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 pointer-events-none">
-                  {card.dataSource === 'google' && card.reviewCount >= 100 && ( <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">🔥 口コミ多数の有名店</span> )}
-                  {card.dataSource === 'hotpepper' && ( <span className="bg-orange-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">📝 HotPepper掲載店</span> )}
-                </div>
-                {isTopCard && Math.abs(currentX) < 10 && ( <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">ℹ️ タップで詳細</div> )}
-                {card.photo?.pc?.l ? ( <img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" /> ) : ( <div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div> )}
-                <div className="flex flex-col h-[45%] p-5 relative bg-white">
-                  <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <p className="text-gray-500 text-sm font-medium">{card.genre?.name}</p>
-                    {card.budget?.name && ( <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200 shadow-sm">💰 {card.budget.name}</span> )}
-                  </div>
-                  {distance !== null && ( <div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div> )}
-                </div>
-                {isTopCard && Math.abs(currentX) > 50 && ( <div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+      {/* PCではここから横並び（3カラム）になる */}
+      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-8 w-full max-w-6xl mx-auto px-4">
+        
+        {/* 左カラム：マッチしたお店（PC用配置） */}
+        <div className="w-80 order-2 lg:order-1 flex flex-col gap-4">
+          {matchedShops.length > 0 ? (
+            <div className="w-full bg-gradient-to-r from-pink-50 to-orange-50 rounded-2xl border border-pink-100 p-4 shadow-sm text-center">
+              <h4 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2">🔥 マッチしたお店 ({matchedShops.length})</h4>
+              <div className="flex flex-col gap-1 mb-3">
+                {matchedShops.map((shop, i) => (
+                  <p key={i} className="text-xs text-gray-700 font-bold truncate bg-white py-1 px-2 rounded-md border border-pink-100">{shop}</p>
+                ))}
               </div>
-            );
-          })
-        )}
-      </div>
-
-      {matchedShops.length > 0 && (
-        <div className="w-80 bg-gradient-to-r from-pink-50 to-orange-50 rounded-2xl border border-pink-100 p-4 mb-4 shadow-sm text-center">
-          <h4 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2">🔥 マッチしたお店 ({matchedShops.length})</h4>
-          <p className="text-xs text-gray-600 mb-3 truncate font-medium">{matchedShops.join(' / ')}</p>
-          {matchedShops.length >= 2 ? ( <button onClick={triggerRoulette} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-2.5 px-4 rounded-xl shadow-md transform hover:scale-102 active:scale-98 transition-all text-sm animate-pulse">🎯 運命のルーレットを回す！</button> ) : ( <p className="text-xs text-gray-400 font-bold">2つ以上で回せるよ！</p> )}
+              {matchedShops.length >= 2 ? ( <button onClick={triggerRoulette} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-2.5 px-4 rounded-xl shadow-md transform hover:scale-102 active:scale-98 transition-all text-sm animate-pulse">🎯 運命のルーレットを回す！</button> ) : ( <p className="text-xs text-gray-400 font-bold">2つ以上で回せるよ！</p> )}
+            </div>
+          ) : (
+            <div className="w-full hidden lg:flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 font-bold text-sm">
+              まだマッチしてないよ！
+            </div>
+          )}
         </div>
-      )}
 
-      <div className="w-80 h-32 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/50 p-4 overflow-y-auto">
-        <h3 className="text-xs font-black text-gray-400 mb-3 uppercase tracking-wider flex justify-between items-center">
-          <span>みんなのアクション</span>
-          <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
-        </h3>
-        {swipeLogs.length === 0 ? ( <p className="text-sm text-gray-400 text-center mt-4 font-medium">まだアクションがありません</p> ) : (
-          <ul className="space-y-2">
-            {swipeLogs.map((log, i) => (
-              <li key={i} className="flex items-center p-2 rounded-xl bg-gray-50 border border-gray-100 transition-all">
-                <span className={`px-2 py-1 rounded text-xs font-extrabold w-12 text-center mr-3 ${log.is_like ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>{log.is_like ? 'LIKE' : 'NOPE'}</span>
-                <span className="font-bold text-gray-800 text-sm truncate flex-1">{log.restaurant_name}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* 中央カラム：スワイプカード */}
+        <div className="relative w-80 h-96 order-1 lg:order-2 shrink-0">
+          {isLoading ? ( 
+            <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500 mb-4"></div>
+              <p className="text-gray-500 font-bold">お店を探しています...</p>
+            </div>
+          ) : cards.length === 0 ? (
+            <div className="flex flex-col items-center justify-center w-full h-full bg-white rounded-3xl shadow-lg border border-gray-100 p-6 text-center animate-fade-in">
+              <div className="text-4xl mb-2">🍽️</div>
+              <p className="text-gray-900 font-black text-base mb-1">お店がなくなっちゃった！</p>
+              <p className="text-gray-400 text-[11px] font-bold mb-4">今の気分を選んで「おかわり」しようぜ！</p>
+              <div className="flex flex-col gap-2 w-full">
+                <button onClick={() => handleOkawari('あっさり')} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2 px-4 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">🥗 あっさり・ヘルシー系</button>
+                <button onClick={() => handleOkawari('こってり')} className="w-full bg-orange-50 hover:bg-orange-100 text-orange-700 font-black py-2 px-4 rounded-xl border border-orange-200 text-xs active:scale-95 transition-all">🍜 こってり・濃いめ系</button>
+                <button onClick={() => handleOkawari('肉')} className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-black py-2 px-4 rounded-xl border border-red-200 text-xs active:scale-95 transition-all">🥩 ガッツリお肉系</button>
+                <button onClick={() => handleOkawari('')} className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-black py-2 px-4 rounded-xl text-xs active:scale-95 transition-all">🔄 条件なしで全リロード</button>
+              </div>
+            </div>
+          ) : (
+            [...cards].reverse().map((card, index) => {
+              const isTopCard = index === cards.length - 1;
+              const distance = calculateDistance(myLocation.lat, myLocation.lng, parseFloat(card.lat), parseFloat(card.lng));
+              const cardStyle = isTopCard
+                ? { transform: `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', zIndex: 10, boxShadow: isDragging ? `0px ${Math.abs(currentX) / 10 + 20}px ${Math.abs(currentX) / 5 + 30}px rgba(0,0,0,${Math.min(Math.abs(currentX) / 500 + 0.1, 0.3)})` : '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }
+                : { transform: 'scale(0.95) translateY(10px)', transition: 'transform 0.3s ease-out', zIndex: 0 };
+
+              return (
+                <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
+                  <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 pointer-events-none">
+                    {card.dataSource === 'google' && card.reviewCount >= 100 && ( <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">🔥 口コミ多数の有名店</span> )}
+                    {card.dataSource === 'hotpepper' && ( <span className="bg-orange-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">📝 HotPepper掲載店</span> )}
+                  </div>
+                  {isTopCard && Math.abs(currentX) < 10 && ( <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">ℹ️ タップで詳細</div> )}
+                  {card.photo?.pc?.l ? ( <img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" /> ) : ( <div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div> )}
+                  <div className="flex flex-col h-[45%] p-5 relative bg-white">
+                    <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <p className="text-gray-500 text-sm font-medium">{card.genre?.name}</p>
+                      {card.budget?.name && ( <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200 shadow-sm">💰 {card.budget.name}</span> )}
+                    </div>
+                    {distance !== null && ( <div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div> )}
+                  </div>
+                  {isTopCard && Math.abs(currentX) > 50 && ( <div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 右カラム：みんなのアクション（PCでは縦長に拡張！） */}
+        <div className="w-80 h-48 lg:h-96 mt-6 lg:mt-0 bg-white/80 backdrop-blur-md rounded-2xl shadow-lg border border-white/50 p-4 overflow-y-auto order-3 lg:order-3">
+          <h3 className="text-xs font-black text-gray-400 mb-3 uppercase tracking-wider flex justify-between items-center">
+            <span>みんなのアクション</span>
+            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
+          </h3>
+          {swipeLogs.length === 0 ? ( <p className="text-sm text-gray-400 text-center mt-4 font-medium">まだアクションがありません</p> ) : (
+            <ul className="space-y-2">
+              {swipeLogs.map((log, i) => (
+                <li key={i} className="flex items-center p-2 rounded-xl bg-gray-50 border border-gray-100 transition-all">
+                  <span className={`px-2 py-1 rounded text-xs font-extrabold w-12 text-center mr-3 ${log.is_like ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-500'}`}>{log.is_like ? 'LIKE' : 'NOPE'}</span>
+                  <span className="font-bold text-gray-800 text-sm truncate flex-1">{log.restaurant_name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
       </div>
 
-      {/* 🌟 変更点：通常モード用の最終決断ポップアップ！ */}
       {matchData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in px-4">
           <div className="bg-white rounded-[2rem] p-6 shadow-2xl flex flex-col items-center text-center transform scale-100 animate-bounce-short border-4 border-pink-400 relative overflow-hidden w-full max-w-sm">
