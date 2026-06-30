@@ -14,6 +14,8 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 
 export default function SwipeApp() {
   const [myUserId, setMyUserId] = useState('');
+  const [loginName, setLoginName] = useState(''); // 🌟 ログイン入力用
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // 🌟 ログイン状態
   const [roomId, setRoomId] = useState(null);
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,12 +40,27 @@ export default function SwipeApp() {
   const hasVibratedRef = useRef(false);
 
   const [selectedShop, setSelectedShop] = useState(null);
-  
   const [trendingShops, setTrendingShops] = useState([]);
 
   const applyPreset = (fav, keyword) => {
     setFavoriteShop(fav);
     setSearchKeyword(keyword);
+  };
+
+  // 🌟 ログイン処理関数
+  const handleLogin = () => {
+    if (!loginName.trim()) return;
+    localStorage.setItem('swipe_app_user', loginName.trim());
+    setMyUserId(loginName.trim());
+    setIsLoggedIn(true);
+  };
+
+  // 🌟 ログアウト処理関数
+  const handleLogout = () => {
+    localStorage.removeItem('swipe_app_user');
+    setIsLoggedIn(false);
+    setMyUserId('user_' + Math.floor(Math.random() * 10000));
+    setLoginName('');
   };
 
   const fetchShops = async (overrideKeyword) => {
@@ -54,8 +71,9 @@ export default function SwipeApp() {
       const lng = searchParams.get('lng') || myLocation.lng || '';
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
       const favorite = searchParams.get('favorite') || favoriteShop || '';
+      const user = searchParams.get('user_id') || myUserId || ''; // 🌟 AIに渡す
       
-      const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}`);
+      const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}&user_id=${encodeURIComponent(user)}`);
       const data = await res.json();
       if (Array.isArray(data)) setCards(data);
     } catch (error) {
@@ -70,7 +88,6 @@ export default function SwipeApp() {
     fetchShops(mood);
   };
 
-  // 🌟 改良ポイント：データが空っぽの時は、リアルな初期データを表示する！
   useEffect(() => {
     if (roomId) return; 
     const fetchTrending = async () => {
@@ -87,15 +104,9 @@ export default function SwipeApp() {
           const name = item.restaurant_name.replace(/\[G\] /g, ''); 
           counts[name] = (counts[name] || 0) + 1;
         });
-        
-        const sorted = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([name, count]) => ({ name, count }));
-        
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, count]) => ({ name, count }));
         setTrendingShops(sorted);
       } else {
-        // DBが空の時のための、リアルなダミーランキング
         setTrendingShops([
           { name: 'サイゼリヤ 三宮センター街店', count: 42 },
           { name: 'ずんどう屋 神戸三宮店', count: 35 },
@@ -109,7 +120,16 @@ export default function SwipeApp() {
   }, [roomId]);
 
   useEffect(() => {
-    setMyUserId('user_' + Math.floor(Math.random() * 10000));
+    // 🌟 保存されたユーザー名があれば自動ログイン
+    const savedUser = localStorage.getItem('swipe_app_user');
+    if (savedUser) {
+      setMyUserId(savedUser);
+      setLoginName(savedUser);
+      setIsLoggedIn(true);
+    } else {
+      setMyUserId('user_' + Math.floor(Math.random() * 10000));
+    }
+
     const searchParams = new URLSearchParams(window.location.search);
     const roomFromUrl = searchParams.get('room');
     const latFromUrl = searchParams.get('lat');
@@ -118,16 +138,13 @@ export default function SwipeApp() {
     const favoriteFromUrl = searchParams.get('favorite');
 
     if (roomFromUrl) setRoomId(roomFromUrl);
-    if (latFromUrl && lngFromUrl) {
-      setMyLocation({ lat: parseFloat(latFromUrl), lng: parseFloat(lngFromUrl) });
-    }
+    if (latFromUrl && lngFromUrl) setMyLocation({ lat: parseFloat(latFromUrl), lng: parseFloat(lngFromUrl) });
     if (keywordFromUrl) setSearchKeyword(keywordFromUrl);
     if (favoriteFromUrl) setFavoriteShop(favoriteFromUrl);
   }, []);
 
   useEffect(() => {
     if (!roomId) return;
-
     fetchShops(); 
 
     const fetchExistingMatches = async () => {
@@ -141,9 +158,7 @@ export default function SwipeApp() {
     };
     fetchExistingMatches();
 
-    const channel = supabase.channel(`room-${roomId}`, {
-      config: { broadcast: { self: false } }
-    });
+    const channel = supabase.channel(`room-${roomId}`, { config: { broadcast: { self: false } } });
     channelRef.current = channel;
 
     channel
@@ -151,7 +166,6 @@ export default function SwipeApp() {
         (payload) => {
           const newSwipe = payload.new;
           setSwipeLogs((prev) => [newSwipe, ...prev]);
-
           if (newSwipe.is_like) {
             setTimeout(async () => {
               const { data } = await supabase.from('swipes').select('user_id').eq('room_id', roomId).eq('restaurant_name', newSwipe.restaurant_name).eq('is_like', true);
@@ -167,14 +181,9 @@ export default function SwipeApp() {
         }
       )
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'roulettes', filter: `room_id=eq.${roomId}` },
-        (payload) => {
-          const rouletteData = payload.new;
-          startRouletteAnimation(rouletteData.winner_restaurant_name);
-        }
+        (payload) => { startRouletteAnimation(payload.new.winner_restaurant_name); }
       )
-      .on('broadcast', { event: 'fly_item' }, (payload) => {
-        triggerFly(payload.payload.content, payload.payload.type, payload.payload.x);
-      })
+      .on('broadcast', { event: 'fly_item' }, (payload) => { triggerFly(payload.payload.content, payload.payload.type, payload.payload.x); })
       .subscribe();
 
     return () => supabase.removeChannel(channel);
@@ -191,7 +200,6 @@ export default function SwipeApp() {
     if (!isSpinning) return; 
     tapCountRef.current += 1;
     const tapX = e.clientX || (e.touches && e.touches[0].clientX) || window.innerWidth / 2;
-
     if (tapCountRef.current % 10 === 0) {
       const secretImages = ['/デブ.png', '/スクリーンショット_2026-06-23_131841-removebg-preview.png', '/スクリーンショット_2026-06-23_131828-removebg-preview.png'];
       const randomImage = secretImages[Math.floor(Math.random() * secretImages.length)];
@@ -199,122 +207,101 @@ export default function SwipeApp() {
       channelRef.current?.send({ type: 'broadcast', event: 'fly_item', payload: { content: randomImage, type: 'image', x: tapX } });
     } else {
       const emojis = ['🍣', '🥩', '🍜', '🍻', '🥟', '🎉', '🔥'];
-      const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-      triggerFly(randomEmoji, 'emoji', tapX);
-      channelRef.current?.send({ type: 'broadcast', event: 'fly_item', payload: { content: randomEmoji, type: 'emoji', x: tapX } });
+      triggerFly(emojis[Math.floor(Math.random() * emojis.length)], 'emoji', tapX);
     }
   };
 
   const triggerRoulette = async () => {
     if (matchedShops.length === 0 || isSpinning) return;
     tapCountRef.current = 0;
-    const randomIndex = Math.floor(Math.random() * matchedShops.length);
-    const winnerName = matchedShops[randomIndex];
+    const winnerName = matchedShops[Math.floor(Math.random() * matchedShops.length)];
     await supabase.from('roulettes').insert([{ room_id: roomId, winner_restaurant_name: winnerName }]);
   };
 
   const startRouletteAnimation = (realWinner) => {
-    setIsRouletteModalOpen(true);
-    setIsSpinning(true);
-    setRouletteWinner(null);
-
-    const index = matchedShops.indexOf(realWinner);
+    setIsRouletteModalOpen(true); setIsSpinning(true); setRouletteWinner(null);
     const segmentAngle = 360 / matchedShops.length;
-    const targetAngle = 360 - (index * segmentAngle) - (segmentAngle / 2);
-    setRouletteRotation(1800 + targetAngle);
-
-    setTimeout(() => {
-      setIsSpinning(false);
-      setRouletteWinner(realWinner);
-    }, 4000);
+    setRouletteRotation(1800 + (360 - (matchedShops.indexOf(realWinner) * segmentAngle) - (segmentAngle / 2)));
+    setTimeout(() => { setIsSpinning(false); setRouletteWinner(realWinner); }, 4000);
   };
 
   const createNewRoom = () => {
     setIsLoading(true);
+    const url = (lat, lng) => `/?room=${Math.random().toString(36).substring(2, 8)}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}&user_id=${encodeURIComponent(myUserId)}`;
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const newRoomId = Math.random().toString(36).substring(2, 8);
-          window.location.href = `/?room=${newRoomId}&lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
-        },
-        () => {
-          const newRoomId = Math.random().toString(36).substring(2, 8);
-          window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
-        }
+        (p) => { window.location.href = url(p.coords.latitude, p.coords.longitude); },
+        () => { window.location.href = `/?room=${Math.random().toString(36).substring(2, 8)}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}&user_id=${encodeURIComponent(myUserId)}`; }
       );
     } else {
-      const newRoomId = Math.random().toString(36).substring(2, 8);
-      window.location.href = `/?room=${newRoomId}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}`;
+      window.location.href = `/?room=${Math.random().toString(36).substring(2, 8)}&keyword=${encodeURIComponent(searchKeyword)}&favorite=${encodeURIComponent(favoriteShop)}&user_id=${encodeURIComponent(myUserId)}`;
     }
   };
 
-  const copyRoomUrl = () => {
-    navigator.clipboard.writeText(window.location.href);
-    alert('URLをコピーしたよ！友達に送ろう！');
-  };
-
-  const handlePointerDown = (e) => { 
-    setStartX(e.clientX); 
-    setIsDragging(true); 
-    hasVibratedRef.current = false;
-  };
+  const copyRoomUrl = () => { navigator.clipboard.writeText(window.location.href); alert('URLをコピーしたよ！友達に送ろう！'); };
+  const handlePointerDown = (e) => { setStartX(e.clientX); setIsDragging(true); hasVibratedRef.current = false; };
   
   const handlePointerMove = (e) => { 
     if (!isDragging) return; 
-    const moveX = e.clientX - startX;
-    setCurrentX(moveX); 
-
-    if (Math.abs(moveX) > 150 && !hasVibratedRef.current) {
+    setCurrentX(e.clientX - startX); 
+    if (Math.abs(e.clientX - startX) > 150 && !hasVibratedRef.current) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
       hasVibratedRef.current = true;
-    } else if (Math.abs(moveX) <= 150) {
-      hasVibratedRef.current = false; 
-    }
+    } else if (Math.abs(e.clientX - startX) <= 150) { hasVibratedRef.current = false; }
   };
   
   const handlePointerUp = async () => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    hasVibratedRef.current = false;
-
+    if (!isDragging) return; setIsDragging(false); hasVibratedRef.current = false;
     if (Math.abs(currentX) > 150) {
-      const isLike = currentX > 0;
-      const swipedCard = cards[0];
-      setCards((prev) => prev.slice(1));
-      await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
-    } else if (Math.abs(currentX) < 5) {
-      setSelectedShop(cards[0]); 
-    }
+      const swipedCard = cards[0]; setCards((prev) => prev.slice(1));
+      await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: currentX > 0 }]);
+    } else if (Math.abs(currentX) < 5) { setSelectedShop(cards[0]); }
     setCurrentX(0);
   };
 
   if (!roomId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 p-4 pb-20">
+        
+        {/* 🌟 新機能：ログイン / マイページ表示エリア */}
+        <div className="w-full max-w-sm bg-white p-4 rounded-2xl shadow-sm border border-gray-200 mb-6 flex items-center justify-between">
+          {isLoggedIn ? (
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-gray-400">ログイン中</span>
+                <span className="text-sm font-black text-gray-800">👤 {myUserId} さん</span>
+                <span className="text-[10px] text-green-500 font-bold mt-0.5 animate-pulse">🤖 あなたの好みをAI学習中！</span>
+              </div>
+              <button onClick={handleLogout} className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-xl border border-red-100 active:scale-95 transition-transform">ログアウト</button>
+            </div>
+          ) : (
+            <div className="flex gap-2 w-full">
+              <input 
+                type="text" 
+                value={loginName} 
+                onChange={(e) => setLoginName(e.target.value)} 
+                placeholder="名前を入力してマイAIを作る" 
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-orange-400 text-gray-900" 
+              />
+              <button onClick={handleLogin} className="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl active:scale-95 transition-transform">ログイン</button>
+            </div>
+          )}
+        </div>
+
         <div className="text-6xl mb-4 drop-shadow-md">📍</div>
         <h1 className="text-3xl font-extrabold mb-6 text-gray-800 tracking-tight text-center leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
         
         {trendingShops.length > 0 && (
           <div className="mb-8 w-full max-w-sm">
-            <h2 className="text-sm font-black text-orange-500 mb-3 flex items-center gap-2">
-              <span className="animate-pulse">🔥</span> みんなのガチ狙い人気店
-            </h2>
+            <h2 className="text-sm font-black text-orange-500 mb-3 flex items-center gap-2"><span className="animate-pulse">🔥</span> みんなのガチ狙い人気店</h2>
             <div className="flex overflow-x-auto gap-3 pb-4 snap-x hide-scrollbar">
               {trendingShops.map((shop, i) => (
-                <div 
-                  key={i} 
-                  onClick={() => setFavoriteShop(shop.name)}
-                  className="min-w-[140px] bg-white p-3 rounded-2xl shadow-sm border border-gray-200 cursor-pointer snap-start hover:border-orange-300 active:scale-95 transition-all flex flex-col justify-between"
-                >
+                <div key={i} onClick={() => setFavoriteShop(shop.name)} className="min-w-[140px] bg-white p-3 rounded-2xl shadow-sm border border-gray-200 cursor-pointer snap-start hover:border-orange-300 active:scale-95 transition-all flex flex-col justify-between">
                   <div>
                     <div className="text-[10px] font-black text-gray-400 mb-1">{i + 1}位</div>
                     <div className="text-sm font-extrabold text-gray-800 line-clamp-2 leading-snug">{shop.name}</div>
                   </div>
-                  <div className="mt-2 flex items-center gap-1 text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-lg w-fit">
-                    ❤️ {shop.count} LIKE
-                  </div>
+                  <div className="mt-2 flex items-center gap-1 text-xs font-bold text-pink-500 bg-pink-50 px-2 py-1 rounded-lg w-fit">❤️ {shop.count} LIKE</div>
                 </div>
               ))}
             </div>
@@ -393,7 +380,6 @@ export default function SwipeApp() {
           [...cards].reverse().map((card, index) => {
             const isTopCard = index === cards.length - 1;
             const distance = calculateDistance(myLocation.lat, myLocation.lng, parseFloat(card.lat), parseFloat(card.lng));
-            
             const cardStyle = isTopCard
               ? { transform: `translateX(${currentX}px) rotate(${currentX * 0.08}deg)`, transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)', zIndex: 10, boxShadow: isDragging ? `0px ${Math.abs(currentX) / 10 + 20}px ${Math.abs(currentX) / 5 + 30}px rgba(0,0,0,${Math.min(Math.abs(currentX) / 500 + 0.1, 0.3)})` : '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }
               : { transform: 'scale(0.95) translateY(10px)', transition: 'transform 0.3s ease-out', zIndex: 0 };
