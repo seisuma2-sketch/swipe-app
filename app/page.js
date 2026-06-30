@@ -28,7 +28,6 @@ export default function SwipeApp() {
   const [isDragging, setIsDragging] = useState(false);
 
   const [isVersusMode, setIsVersusMode] = useState(false);
-  // 🌟 新機能：チュートリアル表示用の状態
   const [showTutorial, setShowTutorial] = useState(false);
   
   const [friendCards, setFriendCards] = useState([]);
@@ -184,8 +183,7 @@ export default function SwipeApp() {
               if (data && data.length >= 2) {
                 setMatchedShops((prev) => Array.from(new Set([...prev, newSwipe.restaurant_name])));
                 if (newSwipe.user_id !== myUserId) {
-                  setMatchData(newSwipe);
-                  setTimeout(() => setMatchData(null), 4000);
+                  setMatchData({ restaurant_name: newSwipe.restaurant_name });
                 }
               }
             }, 500);
@@ -252,7 +250,6 @@ export default function SwipeApp() {
 
   const copyRoomUrl = () => { navigator.clipboard.writeText(window.location.href); alert('URLをコピーしたよ！友達に送ろう！'); };
   
-  // 🖐️ 自分のスワイプ制御
   const handlePointerDown = (e) => { setStartX(e.clientX); setIsDragging(true); hasVibratedRef.current = false; };
   const handlePointerMove = (e) => { 
     if (!isDragging) return; 
@@ -285,15 +282,11 @@ export default function SwipeApp() {
     setCurrentX(0);
   };
 
-  // 🌟 修正：友達側（対面）の操作反転バグを完璧に直した！
   const handleFriendPointerDown = (e) => { setFriendStartX(e.clientX); setFriendIsDragging(true); friendVibratedRef.current = false; };
   const handleFriendPointerMove = (e) => {
     if (!friendIsDragging) return;
-    // 友達の視点（180度反転）で「右」にスワイプすると、物理的には左に進むので座標が減る。
-    // その動きに合わせてカードがちゃんと「指についてくる」ように計算を修正！
     const moveX = friendStartX - e.clientX; 
     setFriendCurrentX(moveX);
-    
     if (Math.abs(moveX) > 150 && !friendVibratedRef.current) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
       friendVibratedRef.current = true;
@@ -303,7 +296,7 @@ export default function SwipeApp() {
     if (!friendIsDragging) return; setFriendIsDragging(false); friendVibratedRef.current = false;
     if (Math.abs(friendCurrentX) > 150) {
       const swipedCard = friendCards[0]; setFriendCards((prev) => prev.slice(1));
-      const isLike = friendCurrentX > 0; // 友達から見て右に動かしていればLIKE
+      const isLike = friendCurrentX > 0;
       
       await supabase.from('swipes').insert([{ room_id: roomId, user_id: 'friend_face_to_face', restaurant_name: swipedCard.name, is_like: isLike }]);
       if (isLike) {
@@ -398,8 +391,6 @@ export default function SwipeApp() {
   if (isVersusMode) {
     return (
       <div className="flex flex-col h-screen w-full bg-gray-900 overflow-hidden relative">
-        
-        {/* 🌟 新機能：両側から見えるチュートリアル画面（開始時のみ表示） */}
         {showTutorial && (
           <div className="fixed inset-0 z-[200] flex flex-col w-full h-full bg-black/95">
             <div className="flex-1 flex flex-col items-center justify-center rotate-180 border-b-2 border-dashed border-gray-600">
@@ -430,7 +421,6 @@ export default function SwipeApp() {
             ) : (
               [...friendCards].reverse().map((card, idx) => {
                 const isTop = idx === friendCards.length - 1;
-                // ⚠️ 修正：マイナスを外して、カードが指についてくるように直した！
                 const cardStyle = isTop 
                   ? { transform: `translateX(${friendCurrentX}px) rotate(${friendCurrentX * 0.08}deg)`, zIndex: 10 } 
                   : { transform: 'scale(0.95) translateY(10px)', zIndex: 0 };
@@ -481,14 +471,28 @@ export default function SwipeApp() {
           </div>
         </div>
 
+        {/* 🌟 変更点：対面タイマンモード用の最終決断ポップアップ！ */}
         {matchData && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-fade-in">
-            <div className="bg-white rounded-[2rem] p-8 m-4 shadow-2xl flex flex-col items-center text-center border-4 border-pink-400">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center animate-fade-in px-4">
+            <div className="bg-white rounded-[2rem] p-6 shadow-2xl flex flex-col items-center text-center border-4 border-pink-400 w-full max-w-sm">
               <div className="text-5xl mb-2">🎉 ⚔️ 🎉</div>
               <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400 tracking-tight mb-2">対面マッチ成立！</h2>
               <p className="text-gray-500 font-bold mb-4 text-xs">2人の意見がその場で完全に一致したぜ！</p>
-              <p className="text-xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full">{matchData.restaurant_name}</p>
-              <button onClick={() => setMatchData(null)} className="mt-6 bg-gray-900 text-white font-bold py-3 px-8 rounded-full w-full">対戦を続ける</button>
+              <p className="text-xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full mb-6">{matchData.restaurant_name}</p>
+              
+              <div className="flex flex-col gap-3 w-full">
+                {matchedShops.length >= 2 && (
+                  <button onClick={() => { setMatchData(null); setIsVersusMode(false); triggerRoulette(); }} className="bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-3 px-4 rounded-full shadow-md active:scale-95 transition-transform w-full animate-pulse text-sm">
+                    🎯 マッチ候補からルーレットで決める！
+                  </button>
+                )}
+                <button onClick={() => { setMatchData(null); setIsVersusMode(false); }} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-full active:scale-95 transition-transform w-full text-sm">
+                  🗣 自分たちで話し合って決める（一覧へ）
+                </button>
+                <button onClick={() => setMatchData(null)} className="bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-full active:scale-95 transition-transform w-full text-sm">
+                  ⚔️ まだまだ対戦を続ける
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -586,15 +590,26 @@ export default function SwipeApp() {
         )}
       </div>
 
+      {/* 🌟 変更点：通常モード用の最終決断ポップアップ！ */}
       {matchData && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in">
-          <div className="bg-white rounded-[2rem] p-8 m-4 shadow-2xl flex flex-col items-center text-center transform scale-100 animate-bounce-short border-4 border-pink-400 relative overflow-hidden">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center animate-fade-in px-4">
+          <div className="bg-white rounded-[2rem] p-6 shadow-2xl flex flex-col items-center text-center transform scale-100 animate-bounce-short border-4 border-pink-400 relative overflow-hidden w-full max-w-sm">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-500 to-orange-400"></div>
             <div className="text-6xl mb-2">🎉</div>
             <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-orange-400 tracking-tight mb-2">MATCH!</h2>
             <p className="text-gray-500 font-bold mb-4 text-sm">誰かがこのお店をLIKEしました</p>
-            <p className="text-2xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full">{matchData.restaurant_name}</p>
-            <button onClick={() => setMatchData(null)} className="mt-6 bg-gray-900 text-white font-bold py-3 px-8 rounded-full hover:bg-gray-800 transition-colors w-full">閉じる</button>
+            <p className="text-2xl font-bold text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 w-full mb-6">{matchData.restaurant_name}</p>
+            
+            <div className="flex flex-col gap-3 w-full">
+              {matchedShops.length >= 2 && (
+                <button onClick={() => { setMatchData(null); triggerRoulette(); }} className="bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-3 px-4 rounded-full shadow-md active:scale-95 transition-transform w-full animate-pulse text-sm">
+                  🎯 マッチ候補からルーレットで決める！
+                </button>
+              )}
+              <button onClick={() => setMatchData(null)} className="bg-blue-600 text-white font-bold py-3 px-4 rounded-full active:scale-95 transition-transform w-full text-sm">
+                🗣 自分たちで話し合って決める（スワイプへ戻る）
+              </button>
+            </div>
           </div>
         </div>
       )}
