@@ -9,17 +9,17 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export async function GET(request) {
   const hotpepperKey = process.env.HOTPEPPER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
-  const googleKey = process.env.GOOGLE_PLACES_API_KEY; 
-  
+  const googleKey = process.env.GOOGLE_PLACES_API_KEY;
+
   const { searchParams } = new URL(request.url);
   const lat = searchParams.get('lat');
   const lng = searchParams.get('lng');
-  const rawKeyword = searchParams.get('keyword'); 
-  const favoriteShop = searchParams.get('favorite'); 
+  const rawKeyword = searchParams.get('keyword');
+  const favoriteShop = searchParams.get('favorite');
   const userId = searchParams.get('user_id');
   const userType = searchParams.get('user_type') || 'student';
 
-  const range = '5'; 
+  const range = '5';
   let apiParams = { keyword: '' };
 
   let historyText = "特になし";
@@ -30,7 +30,7 @@ export async function GET(request) {
       .eq('user_id', userId)
       .eq('is_like', true)
       .limit(20);
-    
+
     if (historyData && historyData.length > 0) {
       historyText = historyData.map(h => h.restaurant_name.replace('[G] ', '')).join(', ');
     }
@@ -40,7 +40,7 @@ export async function GET(request) {
     try {
       const genAI = new GoogleGenerativeAI(geminiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      
+
       let prompt = '';
       if (userType === 'adult') {
         prompt = `あなたは『社会人・大人』向けの飲食店検索コンシェルジュです。
@@ -51,20 +51,28 @@ export async function GET(request) {
         prompt = `あなたは『お金はないけど美味い飯が食いたい大学生』向けの飲食店検索コンシェルジュです。
         ユーザーの「今の気分」「好きな店の系統」「過去にLIKEした履歴」を分析し、今最も刺さる検索条件を1単語で抽出してください。
         【絶対のルール】「コスパ最強」「大盛り」「安い」「B級グルメ」「学生向け居酒屋」などの要素を強めに意識し、高級すぎるジャンルは避けてください。
+        また、ユーザーの気分によっては、スシロー、くら寿司、サイゼリヤなどの「チェーン店」や「回転寿司」「ファミレス」「ファストフード」といったキーワードも積極的に抽出してください。
         出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
       }
 
       // 🌟 追加：テレビ・話題という言葉があった時の特別ルールをAIに教え込む！
+      // 🌟 距離の範囲（radius）もAIに判断させるようにJSONに追加！
       prompt += `\n\n今の気分・条件: "${rawKeyword || '特になし'}"\n普段よく行くお店の系統: "${favoriteShop || '特になし'}"\n過去のLIKE履歴: "${historyText}"\n
       【特別ルール】もし条件に「テレビ」や「話題」が含まれている場合は、メディアでよく紹介されるような「名物」「行列」「有名店」といったキーワードを優先して抽出してください。
-      【出力JSONフォーマット】\n{ "keyword": "検索用1単語", "parking": 0か1, "private_room": 0か1, "free_food": 0か1 }`;
-
+      【出力JSONフォーマット】
+      { 
+        "keyword": "検索用1単語", 
+        "parking": 0か1, 
+        "private_room": 0か1, 
+        "free_food": 0か1,
+        "radius": "近場なら1000、普通なら3000、ドライブ等なら10000などの数値"
+      }`;
       const result = await model.generateContent(prompt);
       const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
       apiParams = JSON.parse(responseText);
     } catch (error) {
       console.error('Gemini解析エラー:', error);
-      apiParams.keyword = favoriteShop || rawKeyword || ''; 
+      apiParams.keyword = favoriteShop || rawKeyword || '';
     }
   }
 
@@ -74,7 +82,7 @@ export async function GET(request) {
   if (lat && lng) {
     hpUrl += `&lat=${lat}&lng=${lng}&range=${range}`;
   } else {
-    hpUrl += `&keyword=三宮`; 
+    hpUrl += `&keyword=三宮`;
   }
 
   if (apiParams.keyword) hpUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
@@ -85,8 +93,8 @@ export async function GET(request) {
   try {
     const res = await fetch(hpUrl);
     const data = await res.json();
-    hpShops = (data.results?.shop || []).map(shop => ({ 
-      ...shop, 
+    hpShops = (data.results?.shop || []).map(shop => ({
+      ...shop,
       dataSource: 'hotpepper',
       card: shop.card || '現地で確認'
     }));
@@ -98,16 +106,17 @@ export async function GET(request) {
   if (!googleKey) {
     googleShops = [{ id: 'error', name: '[G] ⚠️エラー', dataSource: 'error' }];
   } else if (lat && lng) {
-    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=restaurant&key=${googleKey}&language=ja`;
+    // 🌟 AIが決めたradiusを使う（デフォルトは3000）
+    const searchRadius = apiParams.radius || 3000;
+    let googleUrl = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${searchRadius}&type=restaurant&key=${googleKey}&language=ja`;
     if (apiParams.keyword) googleUrl += `&keyword=${encodeURIComponent(apiParams.keyword)}`;
-    
     try {
       const gRes = await fetch(googleUrl);
       const gData = await gRes.json();
-      
+
       if (gData.status === 'OK' || gData.status === 'ZERO_RESULTS') {
         const rawGoogleResults = gData.results || [];
-        
+
         const filteredGoogleResults = rawGoogleResults.filter(place => {
           if (userType === 'student' && place.price_level >= 3) return false;
           return true;
