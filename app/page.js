@@ -766,7 +766,7 @@ export default function SwipeApp() {
 
 
               {selectedShop.urls?.pc && (
-                selectedShop.dataSource === 'google' ? (
+                (selectedShop.dataSource === 'google' || selectedShop.name.includes('[G]')) ? (
                   <a href={selectedShop.urls.pc} target="_blank" rel="noopener noreferrer" className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm">📍 マップで今の混み具合をチェック！ ↗</a>
                 ) : (
                   <a href={selectedShop.urls.pc} target="_blank" rel="noopener noreferrer" className="block w-full bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white text-center font-bold py-3.5 rounded-full shadow-lg transition-transform active:scale-95 text-sm">📱 待たずにすぐネット予約・クーポン！ ↗</a>
