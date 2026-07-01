@@ -141,8 +141,7 @@ export async function GET(request) {
             address: place.vicinity || '',
             access: 'Googleマップで詳細を確認！',
             open: '詳細はマップをチェック！',
-            urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name.replace('[G] ', ''))}&query_place_id=${place.place_id}` }, reviewCount: place.user_ratings_total || 0,
-            card: '現地で確認'
+            urls: { pc: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name.replace('[G] ', ''))}&query_place_id=${place.place_id}` }, card: '現地で確認'
           };
         });
       }
