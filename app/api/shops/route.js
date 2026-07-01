@@ -43,7 +43,7 @@ export async function GET(request) {
       
       let prompt = '';
       if (userType === 'adult') {
-        prompt = `あなたは『社会人・大人』向けの飲食店 Restaurant 検索コンシェルジュです。
+        prompt = `あなたは『社会人・大人』向けの飲食店検索コンシェルジュです。
         ユーザーの「今の気分」「好きな店の系統」「過去にLIKEした履歴」を分析し、今最も刺さる検索条件を1単語で抽出してください。
         【絶対のルール】落ち着いた雰囲気、会社宴会、デート、接待、少し贅沢な食事などに使えるお店を意識してください。
         出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
@@ -54,7 +54,9 @@ export async function GET(request) {
         出力するキーワードは「最も適切な1単語のみ」にしてください。余計なテキストやMarkdownは一切含めず、純粋なJSON文字列のみを返してください。`;
       }
 
+      // 🌟 追加：テレビ・話題という言葉があった時の特別ルールをAIに教え込む！
       prompt += `\n\n今の気分・条件: "${rawKeyword || '特になし'}"\n普段よく行くお店の系統: "${favoriteShop || '特になし'}"\n過去のLIKE履歴: "${historyText}"\n
+      【特別ルール】もし条件に「テレビ」や「話題」が含まれている場合は、メディアでよく紹介されるような「名物」「行列」「有名店」といったキーワードを優先して抽出してください。
       【出力JSONフォーマット】\n{ "keyword": "検索用1単語", "parking": 0か1, "private_room": 0か1, "free_food": 0か1 }`;
 
       const result = await model.generateContent(prompt);
@@ -83,7 +85,6 @@ export async function GET(request) {
   try {
     const res = await fetch(hpUrl);
     const data = await res.json();
-    // 🌟 変更点：マッピングの中に「card（クレカ決済情報）」を追加！
     hpShops = (data.results?.shop || []).map(shop => ({ 
       ...shop, 
       dataSource: 'hotpepper',
@@ -134,7 +135,7 @@ export async function GET(request) {
             urls: { pc: `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}` },
             dataSource: 'google',
             reviewCount: place.user_ratings_total || 0,
-            card: '現地で確認' // Googleはデータを持っていないため一律設定
+            card: '現地で確認'
           };
         });
       }
