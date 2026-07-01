@@ -9,27 +9,27 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c); 
+  return Math.round(R * c);
 }
 
 export default function SwipeApp() {
   const [myUserId, setMyUserId] = useState('');
-  const [loginName, setLoginName] = useState(''); 
-  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+  const [loginName, setLoginName] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [roomId, setRoomId] = useState(null);
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [favoriteShop, setFavoriteShop] = useState(''); 
+  const [favoriteShop, setFavoriteShop] = useState('');
   const [myLocation, setMyLocation] = useState({ lat: null, lng: null });
-  
+
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
   const [isVersusMode, setIsVersusMode] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  
+
   const [friendCards, setFriendCards] = useState([]);
   const [friendStartX, setFriendStartX] = useState(0);
   const [friendCurrentX, setFriendCurrentX] = useState(0);
@@ -38,11 +38,11 @@ export default function SwipeApp() {
 
   const [swipeLogs, setSwipeLogs] = useState([]);
   const [matchData, setMatchData] = useState(null);
-  const [matchedShops, setMatchedShops] = useState([]); 
-  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false); 
-  const [isSpinning, setIsSpinning] = useState(false); 
-  const [rouletteRotation, setRouletteRotation] = useState(0); 
-  const [rouletteWinner, setRouletteWinner] = useState(null); 
+  const [matchedShops, setMatchedShops] = useState([]);
+  const [isRouletteModalOpen, setIsRouletteModalOpen] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [rouletteRotation, setRouletteRotation] = useState(0);
+  const [rouletteWinner, setRouletteWinner] = useState(null);
 
   const [flyingItems, setFlyingItems] = useState([]);
   const channelRef = useRef(null);
@@ -52,8 +52,14 @@ export default function SwipeApp() {
 
   const [selectedShop, setSelectedShop] = useState(null);
   const [trendingShops, setTrendingShops] = useState([]);
-  
+
   const [crowdReports, setCongestionReports] = useState({});
+
+
+  // これをuseStateの塊のどこかに追加
+  const [shopReviews, setShopReviews] = useState([]);
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewInput, setReviewInput] = useState({ payment: '', crowd: '', memo: '' });
 
   const applyPreset = (fav, keyword) => {
     setFavoriteShop(fav);
@@ -82,14 +88,14 @@ export default function SwipeApp() {
       const lng = searchParams.get('lng') || myLocation.lng || '';
       const keyword = overrideKeyword !== undefined ? overrideKeyword : (searchParams.get('keyword') || searchKeyword || '');
       const favorite = searchParams.get('favorite') || favoriteShop || '';
-      const user = searchParams.get('user_id') || myUserId || ''; 
-      const utype = searchParams.get('user_type') || userType; 
-      
+      const user = searchParams.get('user_id') || myUserId || '';
+      const utype = searchParams.get('user_type') || userType;
+
       const res = await fetch(`/api/shops?lat=${lat}&lng=${lng}&keyword=${encodeURIComponent(keyword)}&favorite=${encodeURIComponent(favorite)}&user_id=${encodeURIComponent(user)}&user_type=${encodeURIComponent(utype)}`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setCards(data);
-        setFriendCards([...data]); 
+        setFriendCards([...data]);
       }
     } catch (error) {
       console.error('通信エラー:', error);
@@ -118,8 +124,35 @@ export default function SwipeApp() {
     alert(`「${status}」ってチクっておいたぜ！📣`);
   };
 
+
+
+
+
+  // レビュー送信処理
+  const submitReview = async () => {
+    if (!selectedShop) return;
+    if (!reviewInput.payment && !reviewInput.crowd && !reviewInput.memo) return; // 全部空なら弾く
+
+    const newReview = {
+      restaurant_name: selectedShop.name,
+      user_id: myUserId,
+      payment: reviewInput.payment,
+      crowd: reviewInput.crowd,
+      memo: reviewInput.memo,
+    };
+
+    await supabase.from('reviews').insert([newReview]);
+
+    // 画面にすぐ反映させる
+    setShopReviews(prev => [newReview, ...prev]);
+    setReviewInput({ payment: '', crowd: '', memo: '' });
+    setIsReviewing(false);
+    alert('情報サンキュー！アプリが育ったぜ！🌱✨');
+  };
+
+
   useEffect(() => {
-    if (roomId) return; 
+    if (roomId) return;
     const fetchTrending = async () => {
       const { data, error } = await supabase.from('swipes').select('restaurant_name').eq('is_like', true).order('created_at', { ascending: false }).limit(200);
       if (data && data.length > 0 && !error) {
@@ -142,7 +175,7 @@ export default function SwipeApp() {
 
   useEffect(() => {
     const savedUser = localStorage.getItem('swipe_app_user');
-    if (savedUser) { setMyUserId(savedUser); setLoginName(savedUser); setIsLoggedIn(true); } 
+    if (savedUser) { setMyUserId(savedUser); setLoginName(savedUser); setIsLoggedIn(true); }
     else { setMyUserId('user_' + Math.floor(Math.random() * 10000)); }
 
     const searchParams = new URLSearchParams(window.location.search);
@@ -154,9 +187,28 @@ export default function SwipeApp() {
     if (searchParams.get('user_type')) setUserType(searchParams.get('user_type'));
   }, []);
 
+
+  // お店が選択されたら、みんなのレビューを取得
+  useEffect(() => {
+    if (selectedShop) {
+      const fetchReviews = async () => {
+        const { data } = await supabase
+          .from('reviews')
+          .select('*')
+          .eq('restaurant_name', selectedShop.name)
+          .order('created_at', { ascending: false });
+        if (data) setShopReviews(data);
+      };
+      fetchReviews();
+    } else {
+      setIsReviewing(false); // 閉じた時は入力フォームもリセット
+    }
+  }, [selectedShop]);
+
+
   useEffect(() => {
     if (!roomId) return;
-    fetchShops(); 
+    fetchShops();
 
     const fetchExistingMatches = async () => {
       const { data } = await supabase.from('swipes').select('restaurant_name, is_like').eq('room_id', roomId);
@@ -200,8 +252,8 @@ export default function SwipeApp() {
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, myUserId]); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, myUserId]);
 
   const triggerFly = (content, type, x) => {
     const id = Date.now() + Math.random();
@@ -210,7 +262,7 @@ export default function SwipeApp() {
   };
 
   const handleRouletteTap = (e) => {
-    if (!isSpinning) return; 
+    if (!isSpinning) return;
     tapCountRef.current += 1;
     const tapX = e.clientX || (e.touches && e.touches[0].clientX) || window.innerWidth / 2;
     if (tapCountRef.current % 10 === 0) {
@@ -250,11 +302,11 @@ export default function SwipeApp() {
   };
 
   const copyRoomUrl = () => { navigator.clipboard.writeText(window.location.href); alert('URLをコピーしたよ！友達に送ろう！'); };
-  
+
   const handlePointerDown = (e) => { setStartX(e.clientX); setIsDragging(true); hasVibratedRef.current = false; };
-  const handlePointerMove = (e) => { 
-    if (!isDragging) return; 
-    setCurrentX(e.clientX - startX); 
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    setCurrentX(e.clientX - startX);
     if (Math.abs(e.clientX - startX) > 150 && !hasVibratedRef.current) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
       hasVibratedRef.current = true;
@@ -265,7 +317,7 @@ export default function SwipeApp() {
     if (Math.abs(currentX) > 150) {
       const swipedCard = cards[0]; setCards((prev) => prev.slice(1));
       const isLike = currentX > 0;
-      
+
       if (isVersusMode) {
         await supabase.from('swipes').insert([{ room_id: roomId, user_id: myUserId, restaurant_name: swipedCard.name, is_like: isLike }]);
         if (isLike) {
@@ -286,7 +338,7 @@ export default function SwipeApp() {
   const handleFriendPointerDown = (e) => { setFriendStartX(e.clientX); setFriendIsDragging(true); friendVibratedRef.current = false; };
   const handleFriendPointerMove = (e) => {
     if (!friendIsDragging) return;
-    const moveX = friendStartX - e.clientX; 
+    const moveX = friendStartX - e.clientX;
     setFriendCurrentX(moveX);
     if (Math.abs(moveX) > 150 && !friendVibratedRef.current) {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(40);
@@ -298,7 +350,7 @@ export default function SwipeApp() {
     if (Math.abs(friendCurrentX) > 150) {
       const swipedCard = friendCards[0]; setFriendCards((prev) => prev.slice(1));
       const isLike = friendCurrentX > 0;
-      
+
       await supabase.from('swipes').insert([{ room_id: roomId, user_id: 'friend_face_to_face', restaurant_name: swipedCard.name, is_like: isLike }]);
       if (isLike) {
         if (versusLikes.me.includes(swipedCard.name)) {
@@ -338,7 +390,7 @@ export default function SwipeApp() {
             </div>
             <div className="text-center md:text-left flex flex-col items-center md:items-start">
               <div className="text-6xl mb-4 drop-shadow-md">📍</div>
-              <h1 className="text-3xl md:text-4xl font-extrabold mb-2 text-gray-800 tracking-tight leading-tight">AIにおまかせ！<br/>今日のごはん何にする？</h1>
+              <h1 className="text-3xl md:text-4xl font-extrabold mb-2 text-gray-800 tracking-tight leading-tight">AIにおまかせ！<br />今日のごはん何にする？</h1>
             </div>
             {trendingShops.length > 0 && (
               <div className="w-full">
@@ -392,7 +444,7 @@ export default function SwipeApp() {
               <label className="block text-sm font-bold text-gray-600 mb-1">📝 今日のわがまま条件</label>
               <textarea value={searchKeyword} onChange={(e) => setSearchKeyword(e.target.value)} placeholder="例: 金欠だけど男3人でガッツリ食べたい！" className="w-full px-5 py-3 border border-blue-300 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/30 focus:outline-none text-gray-900 font-medium resize-none h-20 bg-blue-50" />
             </div>
-            {isLoading ? ( 
+            {isLoading ? (
               <div className="flex flex-col items-center gap-3 py-4">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                 <p className="text-gray-500 font-bold">AIがお店を厳選中...</p>
@@ -415,16 +467,16 @@ export default function SwipeApp() {
             <div className="flex-1 flex flex-col items-center justify-center rotate-180 border-b-2 border-dashed border-gray-600">
               <p className="text-gray-400 font-bold mb-6 text-sm tracking-widest">【 相手の画面 】</p>
               <div className="flex gap-12">
-                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👈</span><span className="text-red-500 font-black text-2xl drop-shadow-md">NOPE<br/><span className="text-sm">ちがう</span></span></div>
-                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👉</span><span className="text-green-500 font-black text-2xl drop-shadow-md">LIKE<br/><span className="text-sm">食べたい</span></span></div>
+                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👈</span><span className="text-red-500 font-black text-2xl drop-shadow-md">NOPE<br /><span className="text-sm">ちがう</span></span></div>
+                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👉</span><span className="text-green-500 font-black text-2xl drop-shadow-md">LIKE<br /><span className="text-sm">食べたい</span></span></div>
               </div>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center relative">
               <button onClick={() => setShowTutorial(false)} className="absolute -top-7 left-1/2 -translate-x-1/2 bg-gradient-to-r from-orange-500 to-pink-500 text-white font-black px-10 py-4 rounded-full z-10 active:scale-95 shadow-[0_0_30px_rgba(236,72,153,0.6)] text-lg animate-pulse border-2 border-white">バトル開始！</button>
               <p className="text-gray-400 font-bold mb-6 text-sm tracking-widest mt-8">【 あなたの画面 】</p>
               <div className="flex gap-12">
-                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👈</span><span className="text-red-500 font-black text-2xl drop-shadow-md">NOPE<br/><span className="text-sm">ちがう</span></span></div>
-                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👉</span><span className="text-green-500 font-black text-2xl drop-shadow-md">LIKE<br/><span className="text-sm">食べたい</span></span></div>
+                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👈</span><span className="text-red-500 font-black text-2xl drop-shadow-md">NOPE<br /><span className="text-sm">ちがう</span></span></div>
+                <div className="text-center"><span className="text-5xl block mb-3 animate-bounce">👉</span><span className="text-green-500 font-black text-2xl drop-shadow-md">LIKE<br /><span className="text-sm">食べたい</span></span></div>
               </div>
             </div>
           </div>
@@ -446,7 +498,7 @@ export default function SwipeApp() {
                       <h3 className="font-black text-gray-900 text-base leading-tight line-clamp-2">{card.name}</h3>
                       <p className="text-gray-500 text-xs truncate">{card.genre?.name}</p>
                     </div>
-                    {isTop && Math.abs(friendCurrentX) > 50 && ( <div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${friendCurrentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{friendCurrentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                    {isTop && Math.abs(friendCurrentX) > 50 && (<div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${friendCurrentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{friendCurrentX > 0 ? 'LIKE' : 'NOPE'}</div>)}
                   </div>
                 );
               })
@@ -474,7 +526,7 @@ export default function SwipeApp() {
                       <h3 className="font-black text-gray-900 text-base leading-tight line-clamp-2">{card.name}</h3>
                       <p className="text-gray-500 text-xs truncate">{card.genre?.name}</p>
                     </div>
-                    {isTop && Math.abs(currentX) > 50 && ( <div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${currentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                    {isTop && Math.abs(currentX) > 50 && (<div className={`absolute top-4 px-4 py-1 border-4 font-black rounded-xl text-xl bg-white/90 ${currentX > 0 ? 'border-green-500 text-green-500 left-4' : 'border-red-500 text-red-500 right-4'}`}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div>)}
                   </div>
                 );
               })
@@ -511,9 +563,9 @@ export default function SwipeApp() {
         @keyframes slideUp { 0% { transform: translateY(100%); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
         .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
       `}</style>
-      
+
       <h1 className="text-2xl font-extrabold mb-2 text-gray-800">今日のごはん何にする？</h1>
-      
+
       <div className="flex gap-2 mb-6 z-20 relative flex-wrap justify-center">
         <button onClick={() => window.location.href = '/'} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🏠 最初から</button>
         <button onClick={copyRoomUrl} className="bg-white text-gray-700 font-bold text-sm py-2 px-4 rounded-full shadow-sm border border-gray-200 active:scale-95 transition-transform">🔗 友達を招待</button>
@@ -526,9 +578,9 @@ export default function SwipeApp() {
             <div className="w-full bg-gradient-to-r from-pink-50 to-orange-50 rounded-2xl border border-pink-100 p-4 shadow-sm text-center">
               <h4 className="text-xs font-black text-pink-500 uppercase tracking-wider mb-2">🔥 マッチしたお店 ({matchedShops.length})</h4>
               <div className="flex flex-col gap-1 mb-3">
-                {matchedShops.map((shop, i) => ( <p key={i} className="text-xs text-gray-700 font-bold truncate bg-white py-1 px-2 rounded-md border border-pink-100">{shop}</p> ))}
+                {matchedShops.map((shop, i) => (<p key={i} className="text-xs text-gray-700 font-bold truncate bg-white py-1 px-2 rounded-md border border-pink-100">{shop}</p>))}
               </div>
-              {matchedShops.length >= 2 ? ( <button onClick={triggerRoulette} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-2.5 px-4 rounded-xl shadow-md transform hover:scale-102 active:scale-98 transition-all text-sm animate-pulse">🎯 運命のルーレットを回す！</button> ) : ( <p className="text-xs text-gray-400 font-bold">2つ以上で回せるよ！</p> )}
+              {matchedShops.length >= 2 ? (<button onClick={triggerRoulette} className="w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-black py-2.5 px-4 rounded-xl shadow-md transform hover:scale-102 active:scale-98 transition-all text-sm animate-pulse">🎯 運命のルーレットを回す！</button>) : (<p className="text-xs text-gray-400 font-bold">2つ以上で回せるよ！</p>)}
             </div>
           ) : (
             <div className="w-full hidden lg:flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-2xl text-gray-400 font-bold text-sm">まだマッチしてないよ！</div>
@@ -536,7 +588,7 @@ export default function SwipeApp() {
         </div>
 
         <div className="relative w-80 h-96 order-1 lg:order-2 shrink-0">
-          {isLoading ? ( 
+          {isLoading ? (
             <div className="flex flex-col items-center justify-center w-full h-full bg-white/50 backdrop-blur-sm rounded-3xl border border-white">
               <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-500 mb-4"></div>
               <p className="text-gray-500 font-bold">お店を探しています...</p>
@@ -564,20 +616,20 @@ export default function SwipeApp() {
               return (
                 <div key={card.id} onPointerDown={isTopCard ? handlePointerDown : null} onPointerMove={isTopCard ? handlePointerMove : null} onPointerUp={isTopCard ? handlePointerUp : null} onPointerLeave={isTopCard ? handlePointerUp : null} style={cardStyle} className="absolute top-0 left-0 w-full h-full bg-white rounded-3xl overflow-hidden select-none touch-none cursor-pointer">
                   <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 pointer-events-none">
-                    {card.dataSource === 'google' && card.reviewCount >= 100 && ( <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">🔥 口コミ多数の有名店</span> )}
-                    {card.dataSource === 'hotpepper' && ( <span className="bg-orange-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">📝 HotPepper掲載店</span> )}
+                    {card.dataSource === 'google' && card.reviewCount >= 100 && (<span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">🔥 口コミ多数の有名店</span>)}
+                    {card.dataSource === 'hotpepper' && (<span className="bg-orange-500/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-1 rounded-full shadow-md">📝 HotPepper掲載店</span>)}
                   </div>
-                  {isTopCard && Math.abs(currentX) < 10 && ( <div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">ℹ️ タップで詳細</div> )}
-                  {card.photo?.pc?.l ? ( <img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" /> ) : ( <div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div> )}
+                  {isTopCard && Math.abs(currentX) < 10 && (<div className="absolute top-3 right-3 bg-black/60 text-white text-xs font-bold px-3 py-1 rounded-full z-30 backdrop-blur-sm pointer-events-none">ℹ️ タップで詳細</div>)}
+                  {card.photo?.pc?.l ? (<img src={card.photo.pc.l} className="w-full h-[55%] object-cover pointer-events-none" draggable="false" />) : (<div className="w-full h-[55%] bg-gray-100 flex items-center justify-center"><span className="text-4xl">🍽️</span></div>)}
                   <div className="flex flex-col h-[45%] p-5 relative bg-white">
                     <h2 className="text-xl font-extrabold text-gray-900 leading-tight line-clamp-2">{card.name}</h2>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <p className="text-gray-500 text-sm font-medium">{card.genre?.name}</p>
-                      {card.budget?.name && ( <span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200 shadow-sm">💰 {card.budget.name}</span> )}
+                      {card.budget?.name && (<span className="bg-amber-50 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-md border border-amber-200 shadow-sm">💰 {card.budget.name}</span>)}
                     </div>
-                    {distance !== null && ( <div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div> )}
+                    {distance !== null && (<div className="absolute bottom-5 left-5 bg-blue-50 text-blue-600 font-bold px-3 py-1.5 rounded-lg text-sm border border-blue-100">📍 {distance >= 1000 ? `${(distance / 1000).toFixed(1)}km` : `${distance}m`}</div>)}
                   </div>
-                  {isTopCard && Math.abs(currentX) > 50 && ( <div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div> )}
+                  {isTopCard && Math.abs(currentX) > 50 && (<div className={`absolute top-6 px-6 py-2 border-4 font-extrabold rounded-xl text-3xl z-20 ${currentX > 0 ? 'border-green-500 text-green-500 left-6 -rotate-12 bg-white/90 backdrop-blur-sm' : 'border-red-500 text-red-500 right-6 rotate-12 bg-white/90 backdrop-blur-sm'}`} style={{ opacity: Math.min(Math.abs(currentX) / 100, 1) }}>{currentX > 0 ? 'LIKE' : 'NOPE'}</div>)}
                 </div>
               );
             })
@@ -589,7 +641,7 @@ export default function SwipeApp() {
             <span>みんなのアクション</span>
             <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
           </h3>
-          {swipeLogs.length === 0 ? ( <p className="text-sm text-gray-400 text-center mt-4 font-medium">まだアクションがありません</p> ) : (
+          {swipeLogs.length === 0 ? (<p className="text-sm text-gray-400 text-center mt-4 font-medium">まだアクションがありません</p>) : (
             <ul className="space-y-2">
               {swipeLogs.map((log, i) => (
                 <li key={i} className="flex items-center p-2 rounded-xl bg-gray-50 border border-gray-100 transition-all">
@@ -624,12 +676,12 @@ export default function SwipeApp() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex flex-col justify-end p-4 transition-opacity" onPointerDown={() => setSelectedShop(null)}>
           <div className="bg-white w-full max-w-sm mx-auto rounded-[2rem] shadow-2xl animate-slide-up relative max-h-[85vh] overflow-y-auto" onPointerDown={(e) => e.stopPropagation()}>
             <button onClick={() => setSelectedShop(null)} className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold z-10 backdrop-blur-md transition-colors">✕</button>
-            {selectedShop.photo?.pc?.l && ( <img src={selectedShop.photo.pc.l} alt={selectedShop.name} className="w-full h-48 object-cover" /> )}
-            
+            {selectedShop.photo?.pc?.l && (<img src={selectedShop.photo.pc.l} alt={selectedShop.name} className="w-full h-48 object-cover" />)}
+
             <div className="p-6">
               <p className="text-blue-500 text-xs font-bold mb-1">{selectedShop.genre?.name}</p>
               <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{selectedShop.name}</h3>
-              
+
               {crowdReports[selectedShop.name] && (
                 <div className="mb-4 bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-xs px-4 py-3 rounded-2xl shadow-md animate-pulse flex items-center justify-between">
                   <span>📢 リアルタイム速報：{crowdReports[selectedShop.name].status}</span>
@@ -650,6 +702,51 @@ export default function SwipeApp() {
                 </span>
               </div>
 
+
+              {/* 🌱 育つアプリ：みんなのレビュー領域 */}
+              <div className="mb-6 bg-white p-4 rounded-xl border border-green-200 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 to-emerald-400"></div>
+                <h4 className="text-sm font-black text-green-700 mb-3 flex items-center gap-1">
+                  🌱 みんなのリアル情報
+                </h4>
+
+                {/* 既存のレビュー表示 */}
+                {shopReviews.length > 0 ? (
+                  <div className="space-y-2 mb-4 max-h-32 overflow-y-auto pr-1 hide-scrollbar">
+                    {shopReviews.map((r, i) => (
+                      <div key={i} className="bg-green-50/50 p-2.5 rounded-lg text-[11px] border border-green-100 flex flex-col gap-1.5">
+                        <div className="flex gap-1.5 flex-wrap">
+                          {r.payment && <span className="bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded shadow-sm">💳 {r.payment}</span>}
+                          {r.crowd && <span className="bg-orange-100 text-orange-700 font-bold px-1.5 py-0.5 rounded shadow-sm">🕒 {r.crowd}</span>}
+                        </div>
+                        {r.memo && <span className="text-gray-700 font-medium">{r.memo}</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs font-bold text-gray-400 mb-4 text-center">まだ情報がないよ！一番乗りで教えて！</p>
+                )}
+
+                {/* 超任意の入力フォーム */}
+                {!isReviewing ? (
+                  <button onClick={() => setIsReviewing(true)} className="w-full bg-green-50 hover:bg-green-100 text-green-700 font-black py-2.5 rounded-xl border border-green-200 text-xs active:scale-95 transition-all">
+                    ✍️ 行ったメモを残す（超任意！）
+                  </button>
+                ) : (
+                  <div className="bg-green-50 p-3 rounded-xl border border-green-200 space-y-2 animate-fade-in">
+                    <p className="text-[10px] font-black text-green-800 mb-1">少しでも情報くれると神！</p>
+                    <input type="text" placeholder="支払方法 (例: PayPayいけた)" value={reviewInput.payment} onChange={e => setReviewInput({ ...reviewInput, payment: e.target.value })} className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-200 focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <input type="text" placeholder="混雑 (例: 土曜19時はすぐ入れた)" value={reviewInput.crowd} onChange={e => setReviewInput({ ...reviewInput, crowd: e.target.value })} className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-200 focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <input type="text" placeholder="その他メモ (例: メニュー最高)" value={reviewInput.memo} onChange={e => setReviewInput({ ...reviewInput, memo: e.target.value })} className="w-full px-3 py-2 text-xs font-medium rounded-lg border border-green-200 focus:outline-none focus:ring-2 focus:ring-green-400" />
+                    <div className="flex gap-2 mt-2 pt-1">
+                      <button onClick={submitReview} className="flex-1 bg-green-500 text-white font-black py-2 rounded-lg text-xs active:scale-95 shadow">送信する！</button>
+                      <button onClick={() => setIsReviewing(false)} className="flex-1 bg-white text-gray-500 font-black py-2 rounded-lg text-xs border border-gray-200 active:scale-95">やめる</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+
               <div className="mb-6 bg-orange-50/50 border border-orange-100 p-3 rounded-2xl text-center">
                 <p className="text-[11px] font-black text-orange-600 mb-2">🔥 お店に着いたら今の状況をチクろうぜ！</p>
                 <div className="flex gap-2 justify-center">
@@ -664,6 +761,9 @@ export default function SwipeApp() {
                 <p className="text-gray-700 flex items-start gap-2"><span className="text-sm">📍</span><span className="flex-1 leading-snug"><strong>住所:</strong> {selectedShop.address || '情報なし'}</span></p>
                 <p className="text-gray-700 flex items-start gap-2"><span className="text-sm">🕒</span><span className="flex-1 leading-snug"><strong>営業時間:</strong> {selectedShop.open || '情報なし'}</span></p>
               </div>
+
+
+
 
               {selectedShop.urls?.pc && (
                 selectedShop.dataSource === 'google' ? (
